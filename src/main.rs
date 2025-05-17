@@ -2,6 +2,7 @@ mod ast;
 mod builtins;
 mod env;
 mod eval;
+mod special_forms;
 
 #[cfg(test)]
 mod test_utils;

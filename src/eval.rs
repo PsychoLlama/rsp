@@ -1,6 +1,7 @@
 use crate::ast::Expr;
-use crate::builtins; // Added
+use crate::builtins;
 use crate::env::Environment;
+use crate::special_forms; // Added for special form constants
 use std::cell::RefCell;
 use std::rc::Rc;
 use thiserror::Error;
@@ -51,11 +52,11 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
             // Handle special forms and function calls
             let first_form = &list[0];
             match first_form {
-                Expr::Symbol(s) if s == "let" => {
+                Expr::Symbol(s) if s == special_forms::LET => {
                     // Pass arguments *after* 'let' to the handler
                     builtins::eval_let(&list[1..], Rc::clone(&env))
                 }
-                Expr::Symbol(s) if s == "quote" => {
+                Expr::Symbol(s) if s == special_forms::QUOTE => {
                     trace!("Executing 'quote' special form");
                     if list.len() != 2 {
                         error!(

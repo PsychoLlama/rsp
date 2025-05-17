@@ -37,7 +37,7 @@ pub fn eval_let(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Li
     };
 
     // Check if the variable name is a reserved keyword
-    if var_name == "let" || var_name == "quote" {
+    if crate::special_forms::is_special_form(&var_name) {
         error!(attempted_keyword = %var_name, "Attempted to bind a reserved keyword using 'let'");
         return Err(LispError::ReservedKeyword(var_name));
     }
