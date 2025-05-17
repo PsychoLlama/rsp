@@ -5,7 +5,7 @@ use crate::special_forms; // Added for special form constants
 use std::cell::RefCell;
 use std::rc::Rc;
 use thiserror::Error;
-use tracing::{debug, error, instrument, trace, warn};
+use tracing::{debug, error, instrument, trace};
 
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum LispError {
@@ -30,9 +30,9 @@ pub enum LispError {
 pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
     trace!("Starting evaluation");
     match expr {
-        Expr::Number(_) => {
-            debug!(env = ?env.borrow(), "Evaluating Number: {:?}", expr);
-            Ok(expr.clone()) // Numbers evaluate to themselves
+        Expr::Number(_) | Expr::Function(_) => {
+            debug!(env = ?env.borrow(), "Evaluating Number or Function: {:?}", expr);
+            Ok(expr.clone()) // Numbers and Functions evaluate to themselves
         }
         Expr::Symbol(s) => {
             debug!(env = ?env.borrow(), symbol_name = %s, "Evaluating Symbol");
@@ -140,7 +140,6 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
 #[cfg(test)]
 mod tests {
     use super::*; // Imports eval, Expr, LispError, Environment, Rc, RefCell
-    use crate::ast::LispFunction; // For checking function properties in tests
     use crate::test_utils::setup_tracing; // Use shared setup_tracing
 
     #[test]
