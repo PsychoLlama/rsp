@@ -1,4 +1,5 @@
 mod ast;
+mod env;
 mod eval;
 
 use anyhow::Result;
