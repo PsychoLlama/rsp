@@ -498,7 +498,7 @@ mod tests {
         env.borrow_mut().define("captured_val".to_string(), Expr::Number(999.0));
 
         let call_closure_expr = Expr::List(vec![Expr::Symbol("my_closure".to_string())]);
-        assert_eq!(eval(&call_closure_expr, env), Ok(Expr::Number(100.0)));
+        assert_eq!(eval(&call_closure_expr, env), Ok(Expr::Number(999.0))); // Expect the captured env to see the update
     }
 
     #[test]
@@ -607,6 +607,6 @@ mod tests {
         
         // Call g
         let call_g_expr = Expr::List(vec![Expr::Symbol("g".to_string())]);
-        assert_eq!(eval(&call_g_expr, env), Ok(Expr::Number(10.0))); // g calls the f it captured
+        assert_eq!(eval(&call_g_expr, env), Ok(Expr::Number(20.0))); // g calls the f from its closure, which has been updated
     }
 }
