@@ -175,11 +175,66 @@ pub fn eval_if(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
     }
 }
 
+// Native Rust functions callable from Lisp (the "prelude" functions)
+
+fn extract_number(expr: &Expr, op_name: &str) -> Result<f64, LispError> {
+    match expr {
+        Expr::Number(n) => Ok(*n),
+        _ => {
+            let type_error = LispError::TypeError {
+                expected: "Number".to_string(),
+                found: format!("{:?}", expr),
+            };
+            error!(operator = %op_name, error = %type_error, "Type error in native function");
+            Err(type_error)
+        }
+    }
+}
+
+#[tracing::instrument(skip(args), ret, err)]
+pub fn native_add(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native '+' function");
+    let mut sum = 0.0;
+    if args.is_empty() { // Standard behavior for (+) is 0
+        return Ok(Expr::Number(0.0));
+    }
+    for arg in args {
+        sum += extract_number(&arg, "+")?;
+    }
+    Ok(Expr::Number(sum))
+}
+
+#[tracing::instrument(skip(args), ret, err)]
+pub fn native_equals(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native '=' function for numeric equality");
+    if args.len() < 2 {
+        // In many Lisps, (=) is true, (= x) is true.
+        // For numeric comparison, typically at least two args are expected.
+        // Let's require at least two for numeric comparison for now.
+        // Or, one could define different equality predicates (eq?, eql?, equal?).
+        let arity_error = LispError::ArityMismatch(format!(
+            "Native '=' expects at least 2 arguments for numeric comparison, got {}",
+            args.len()
+        ));
+        error!(error = %arity_error, "Arity error in native '='");
+        return Err(arity_error);
+    }
+
+    let first_val = extract_number(&args[0], "=")?;
+    for arg_expr in args.iter().skip(1) {
+        if first_val != extract_number(arg_expr, "=")? {
+            return Ok(Expr::Bool(false));
+        }
+    }
+    Ok(Expr::Bool(true))
+}
+
+
 // Future built-in functions will go here.
 
 #[cfg(test)]
 mod tests {
-    use crate::ast::{Expr, LispFunction};
+    use crate::ast::{Expr, LispFunction, NativeFunction}; // Added NativeFunction
     use crate::env::Environment;
     use crate::eval::{LispError, eval}; // Need main eval for testing integration
     use crate::test_utils::setup_tracing; // Use shared setup_tracing
@@ -730,5 +785,227 @@ mod tests {
             Expr::Symbol("else-val".to_string()),
         ]);
         assert_eq!(eval(&expr, env), Ok(Expr::Number(200.0)));
+    }
+
+    // Tests for native functions
+    // These tests manually add the native functions to the environment.
+    // Later, a prelude mechanism will do this automatically.
+
+    #[test]
+    fn test_native_add_simple() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define(
+            "+".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "+".to_string(),
+                func: native_add,
+            }),
+        );
+        // (+ 1 2)
+        let expr = Expr::List(vec![
+            Expr::Symbol("+".to_string()),
+            Expr::Number(1.0),
+            Expr::Number(2.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(3.0)));
+    }
+
+    #[test]
+    fn test_native_add_multiple_args() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define(
+            "+".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "+".to_string(),
+                func: native_add,
+            }),
+        );
+        // (+ 1 2 3 4)
+        let expr = Expr::List(vec![
+            Expr::Symbol("+".to_string()),
+            Expr::Number(1.0),
+            Expr::Number(2.0),
+            Expr::Number(3.0),
+            Expr::Number(4.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(10.0)));
+    }
+
+    #[test]
+    fn test_native_add_no_args() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define(
+            "+".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "+".to_string(),
+                func: native_add,
+            }),
+        );
+        // (+)
+        let expr = Expr::List(vec![Expr::Symbol("+".to_string())]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(0.0)));
+    }
+
+    #[test]
+    fn test_native_add_type_error() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define(
+            "+".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "+".to_string(),
+                func: native_add,
+            }),
+        );
+        // (+ 1 true)
+        let expr = Expr::List(vec![
+            Expr::Symbol("+".to_string()),
+            Expr::Number(1.0),
+            Expr::Bool(true), // Not a number
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::TypeError {
+                expected: "Number".to_string(),
+                found: "Bool(true)".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn test_native_equals_true() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define(
+            "=".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "=".to_string(),
+                func: native_equals,
+            }),
+        );
+        // (= 5 5.0)
+        let expr = Expr::List(vec![
+            Expr::Symbol("=".to_string()),
+            Expr::Number(5.0),
+            Expr::Number(5.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Bool(true)));
+    }
+
+    #[test]
+    fn test_native_equals_false() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define(
+            "=".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "=".to_string(),
+                func: native_equals,
+            }),
+        );
+        // (= 5 6)
+        let expr = Expr::List(vec![
+            Expr::Symbol("=".to_string()),
+            Expr::Number(5.0),
+            Expr::Number(6.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Bool(false)));
+    }
+    
+    #[test]
+    fn test_native_equals_multiple_true() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define(
+            "=".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "=".to_string(),
+                func: native_equals,
+            }),
+        );
+        // (= 3 3 3 3)
+        let expr = Expr::List(vec![
+            Expr::Symbol("=".to_string()),
+            Expr::Number(3.0),
+            Expr::Number(3.0),
+            Expr::Number(3.0),
+            Expr::Number(3.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Bool(true)));
+    }
+
+    #[test]
+    fn test_native_equals_multiple_false() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define(
+            "=".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "=".to_string(),
+                func: native_equals,
+            }),
+        );
+        // (= 3 3 4 3)
+        let expr = Expr::List(vec![
+            Expr::Symbol("=".to_string()),
+            Expr::Number(3.0),
+            Expr::Number(3.0),
+            Expr::Number(4.0),
+            Expr::Number(3.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Bool(false)));
+    }
+
+    #[test]
+    fn test_native_equals_arity_error_too_few() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define(
+            "=".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "=".to_string(),
+                func: native_equals,
+            }),
+        );
+        // (= 5)
+        let expr = Expr::List(vec![
+            Expr::Symbol("=".to_string()),
+            Expr::Number(5.0),
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::ArityMismatch(
+                "Native '=' expects at least 2 arguments for numeric comparison, got 1".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_native_equals_type_error() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define(
+            "=".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "=".to_string(),
+                func: native_equals,
+            }),
+        );
+        // (= 5 nil)
+        let expr = Expr::List(vec![
+            Expr::Symbol("=".to_string()),
+            Expr::Number(5.0),
+            Expr::Nil, // Not a number
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::TypeError {
+                expected: "Number".to_string(),
+                found: "Nil".to_string()
+            })
+        );
     }
 }

@@ -34,10 +34,40 @@ pub enum Expr {
     Number(f64),
     List(Vec<Expr>),
     Function(LispFunction),
+    NativeFunction(NativeFunction), // New variant for Rust functions
     Bool(bool),
     Nil,
     // Future extensions could include:
     // String(String),
+}
+
+/// Type alias for a native Rust function that can be called from Lisp.
+/// It takes a Vec of already-evaluated Expr arguments and returns a Result<Expr, LispError>.
+pub type NativeFn = fn(Vec<Expr>) -> Result<Expr, crate::eval::LispError>; // Forward declare LispError path
+
+#[derive(Clone)]
+pub struct NativeFunction {
+    pub name: String, // For debugging and identification
+    pub func: NativeFn,
+}
+
+impl fmt::Debug for NativeFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NativeFunction")
+            .field("name", &self.name)
+            .field("func", &"<native_fn_ptr>") // Avoid printing function pointer details
+            .finish()
+    }
+}
+
+// NativeFunctions are considered equal if their names are the same.
+// This assumes that native function names are unique within the system.
+impl PartialEq for NativeFunction {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+        // Comparing self.func == other.func (function pointers) is also possible
+        // but equality by name is often sufficient if names are guaranteed unique.
+    }
 }
 
 // Helper functions for constructing AST nodes can be added here later.

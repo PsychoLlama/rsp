@@ -30,9 +30,9 @@ pub enum LispError {
 pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
     trace!("Starting evaluation");
     match expr {
-        Expr::Number(_) | Expr::Function(_) | Expr::Bool(_) | Expr::Nil => {
-            debug!(env = ?env.borrow(), "Evaluating Number, Function, Bool, or Nil: {:?}", expr);
-            Ok(expr.clone()) // Numbers, Functions, Bools, and Nil evaluate to themselves
+        Expr::Number(_) | Expr::Function(_) | Expr::NativeFunction(_) | Expr::Bool(_) | Expr::Nil => {
+            debug!(env = ?env.borrow(), "Evaluating Number, Function, NativeFunction, Bool, or Nil: {:?}", expr);
+            Ok(expr.clone()) // These types evaluate to themselves
         }
         Expr::Symbol(s) => {
             debug!(env = ?env.borrow(), symbol_name = %s, "Evaluating Symbol");
@@ -114,11 +114,22 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                             debug!(body = ?lisp_fn.body, "Evaluating function body");
                             eval(&lisp_fn.body, call_env)
                         }
+                        Expr::NativeFunction(native_fn) => {
+                            debug!(native_function_name = %native_fn.name, "Attempting to call NativeFunction");
+                            // 2. Evaluate the arguments (already done for LispFunction, repeat for consistency or refactor)
+                            let mut evaluated_args = Vec::new();
+                            for arg_expr in &list[1..] {
+                                evaluated_args.push(eval(arg_expr, Rc::clone(&env))?);
+                            }
+                            // 3. Call the native Rust function
+                            trace!(args = ?evaluated_args, "Calling native function with evaluated arguments");
+                            (native_fn.func)(evaluated_args)
+                        }
                         _ => {
-                            error!(non_function_expr = ?first_form, evaluated_to = ?func_expr, "Attempted to call a non-function");
+                            error!(non_function_expr = ?first_form, evaluated_to = ?func_expr, "Attempted to call a non-function or non-native-function");
                             Err(LispError::NotAFunction(format!(
-                                "Expected a function, but found: {:?}",
-                                func_expr // Or first_form, depending on desired error message
+                                "Expected a Lisp function or a native function, but found: {:?}",
+                                func_expr
                             )))
                         }
                     }
