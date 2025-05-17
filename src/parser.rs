@@ -4,7 +4,7 @@ use nom::{
     // combinator::map, // Removed as Parser::map method is used
     branch::alt,                                     // For trying multiple parsers
     bytes::complete::tag,                            // For matching literal strings
-    character::complete::{alphanumeric0, satisfy},   // For character-level parsing
+    character::complete::satisfy,                    // For character-level parsing (removed alphanumeric0)
     combinator::{map, recognize},                    // For transforming and recognizing parser output
     multi::many0,                                    // For repeating a parser zero or more times
     number::complete::double,                        // For parsing f64 numbers
@@ -93,7 +93,8 @@ pub fn parse_expr(input: &str) -> IResult<&str, Expr> {
         parse_nil,
         parse_symbol,
         // TODO: parse_list will be added here later
-    ))(input)
+    ))
+    .parse(input)
 }
 
 #[cfg(test)]
