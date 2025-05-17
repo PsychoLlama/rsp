@@ -30,9 +30,9 @@ pub enum LispError {
 pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
     trace!("Starting evaluation");
     match expr {
-        Expr::Number(_) | Expr::Function(_) => {
-            debug!(env = ?env.borrow(), "Evaluating Number or Function: {:?}", expr);
-            Ok(expr.clone()) // Numbers and Functions evaluate to themselves
+        Expr::Number(_) | Expr::Function(_) | Expr::Bool(_) | Expr::Nil => {
+            debug!(env = ?env.borrow(), "Evaluating Number, Function, Bool, or Nil: {:?}", expr);
+            Ok(expr.clone()) // Numbers, Functions, Bools, and Nil evaluate to themselves
         }
         Expr::Symbol(s) => {
             debug!(env = ?env.borrow(), symbol_name = %s, "Evaluating Symbol");
@@ -195,6 +195,30 @@ mod tests {
         let env = Environment::new();
         let expr = Expr::List(vec![]);
         assert_eq!(eval(&expr, env), Ok(Expr::List(vec![])));
+    }
+
+    #[test]
+    fn eval_true_literal() {
+        setup_tracing();
+        let env = Environment::new();
+        let expr = Expr::Bool(true);
+        assert_eq!(eval(&expr, env), Ok(Expr::Bool(true)));
+    }
+
+    #[test]
+    fn eval_false_literal() {
+        setup_tracing();
+        let env = Environment::new();
+        let expr = Expr::Bool(false);
+        assert_eq!(eval(&expr, env), Ok(Expr::Bool(false)));
+    }
+
+    #[test]
+    fn eval_nil_literal() {
+        setup_tracing();
+        let env = Environment::new();
+        let expr = Expr::Nil;
+        assert_eq!(eval(&expr, env), Ok(Expr::Nil));
     }
 
     #[test]

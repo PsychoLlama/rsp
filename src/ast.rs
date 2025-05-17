@@ -34,8 +34,9 @@ pub enum Expr {
     Number(f64),
     List(Vec<Expr>),
     Function(LispFunction),
+    Bool(bool),
+    Nil,
     // Future extensions could include:
-    // Bool(bool),
     // String(String),
 }
 
