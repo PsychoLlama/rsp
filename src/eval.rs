@@ -18,6 +18,8 @@ pub enum LispError {
     InvalidArguments { operator: String, message: String },
     #[error("Arity mismatch: {0}")]
     ArityMismatch(String),
+    #[error("Cannot bind reserved keyword: {0}")]
+    ReservedKeyword(String),
     // Add more specific errors as the interpreter develops
 }
 

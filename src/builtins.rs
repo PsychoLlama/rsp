@@ -36,6 +36,12 @@ pub fn eval_let(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Li
         }
     };
 
+    // Check if the variable name is a reserved keyword
+    if var_name == "let" || var_name == "quote" {
+        error!(attempted_keyword = %var_name, "Attempted to bind a reserved keyword using 'let'");
+        return Err(LispError::ReservedKeyword(var_name));
+    }
+
     debug!(variable_name = %var_name, value_expression = ?value_expr, "'let' binding");
     // Note: We need to call back into the main eval function here.
     // This requires `crate::eval::eval` to be accessible.
@@ -144,6 +150,38 @@ mod tests {
                 expected: "Symbol".to_string(),
                 found: "Number(10.0)".to_string()
             })
+        );
+    }
+
+    #[test]
+    fn eval_let_error_binding_reserved_keyword_let() {
+        setup_tracing();
+        let env = Environment::new();
+        // (let let 10)
+        let expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Symbol("let".to_string()), // Variable name is "let"
+            Expr::Number(10.0),
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::ReservedKeyword("let".to_string()))
+        );
+    }
+
+    #[test]
+    fn eval_let_error_binding_reserved_keyword_quote() {
+        setup_tracing();
+        let env = Environment::new();
+        // (let quote 10)
+        let expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Symbol("quote".to_string()), // Variable name is "quote"
+            Expr::Number(10.0),
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::ReservedKeyword("quote".to_string()))
         );
     }
 }
