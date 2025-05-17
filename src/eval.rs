@@ -53,6 +53,21 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                     // Pass arguments *after* 'let' to the handler
                     builtins::eval_let(&list[1..], Rc::clone(&env))
                 }
+                Expr::Symbol(s) if s == "quote" => {
+                    trace!("Executing 'quote' special form");
+                    if list.len() != 2 {
+                        error!(
+                            "'quote' special form requires 1 argument, found {}",
+                            list.len() - 1
+                        );
+                        return Err(LispError::ArityMismatch(format!(
+                            "'quote' expects 1 argument, got {}",
+                            list.len() - 1
+                        )));
+                    }
+                    // The argument to quote is not evaluated.
+                    Ok(list[1].clone())
+                }
                 // Placeholder for other function calls or special forms
                 _ => {
                     trace!(
@@ -158,6 +173,107 @@ mod tests {
             Err(LispError::Evaluation(
                 "Don't know how to evaluate list starting with: Symbol(\"unknown_function\")"
                     .to_string()
+            ))
+        );
+    }
+
+    // Tests for 'quote' special form
+    #[test]
+    fn eval_quote_symbol() {
+        setup_tracing();
+        let env = Environment::new();
+        // (quote x)
+        let expr = Expr::List(vec![
+            Expr::Symbol("quote".to_string()),
+            Expr::Symbol("x".to_string()),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Symbol("x".to_string())));
+    }
+
+    #[test]
+    fn eval_quote_number() {
+        setup_tracing();
+        let env = Environment::new();
+        // (quote 10)
+        let expr = Expr::List(vec![
+            Expr::Symbol("quote".to_string()),
+            Expr::Number(10.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(10.0)));
+    }
+
+    #[test]
+    fn eval_quote_list() {
+        setup_tracing();
+        let env = Environment::new();
+        // (quote (1 2))
+        let inner_list = vec![Expr::Number(1.0), Expr::Number(2.0)];
+        let expr = Expr::List(vec![
+            Expr::Symbol("quote".to_string()),
+            Expr::List(inner_list.clone()),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::List(inner_list)));
+    }
+
+    #[test]
+    fn eval_quote_empty_list_as_arg() {
+        setup_tracing();
+        let env = Environment::new();
+        // (quote ())
+        let expr = Expr::List(vec![
+            Expr::Symbol("quote".to_string()),
+            Expr::List(vec![]),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::List(vec![])));
+    }
+
+    #[test]
+    fn eval_quote_nested_list() {
+        setup_tracing();
+        let env = Environment::new();
+        // (quote (a (b c)))
+        let nested_list = Expr::List(vec![
+            Expr::Symbol("a".to_string()),
+            Expr::List(vec![
+                Expr::Symbol("b".to_string()),
+                Expr::Symbol("c".to_string()),
+            ]),
+        ]);
+        let expr = Expr::List(vec![
+            Expr::Symbol("quote".to_string()),
+            nested_list.clone(),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(nested_list));
+    }
+
+    #[test]
+    fn eval_quote_arity_error_no_args() {
+        setup_tracing();
+        let env = Environment::new();
+        // (quote)
+        let expr = Expr::List(vec![Expr::Symbol("quote".to_string())]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::ArityMismatch(
+                "'quote' expects 1 argument, got 0".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn eval_quote_arity_error_too_many_args() {
+        setup_tracing();
+        let env = Environment::new();
+        // (quote x y)
+        let expr = Expr::List(vec![
+            Expr::Symbol("quote".to_string()),
+            Expr::Symbol("x".to_string()),
+            Expr::Symbol("y".to_string()),
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::ArityMismatch(
+                "'quote' expects 1 argument, got 2".to_string()
             ))
         );
     }
