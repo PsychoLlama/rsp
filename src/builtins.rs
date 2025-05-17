@@ -229,12 +229,25 @@ pub fn native_equals(args: Vec<Expr>) -> Result<Expr, LispError> {
     Ok(Expr::Bool(true))
 }
 
+#[tracing::instrument(skip(args), ret, err)]
+pub fn native_multiply(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native '*' function");
+    let mut product = 1.0;
+    if args.is_empty() { // Standard behavior for (*) is 1
+        return Ok(Expr::Number(1.0));
+    }
+    for arg in args {
+        product *= extract_number(&arg, "*")?;
+    }
+    Ok(Expr::Number(product))
+}
+
 
 // Future built-in functions will go here.
 
 #[cfg(test)]
 mod tests {
-    use super::{native_add, native_equals}; // Import parent module's functions
+    use super::{native_add, native_equals, native_multiply}; // Import parent module's functions
     use crate::ast::{Expr, LispFunction, NativeFunction}; // Added NativeFunction
     use crate::env::Environment;
     use crate::eval::{LispError, eval}; // Need main eval for testing integration
@@ -1006,6 +1019,89 @@ mod tests {
             Err(LispError::TypeError {
                 expected: "Number".to_string(),
                 found: "Nil".to_string()
+            })
+        );
+    }
+
+    // Tests for native_multiply
+    #[test]
+    fn test_native_multiply_simple() {
+        setup_tracing();
+        let env = Environment::new_with_prelude(); // Uses prelude which now includes *
+        // (* 2 3)
+        let expr = Expr::List(vec![
+            Expr::Symbol("*".to_string()),
+            Expr::Number(2.0),
+            Expr::Number(3.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(6.0)));
+    }
+
+    #[test]
+    fn test_native_multiply_multiple_args() {
+        setup_tracing();
+        let env = Environment::new_with_prelude();
+        // (* 1 2 3 4)
+        let expr = Expr::List(vec![
+            Expr::Symbol("*".to_string()),
+            Expr::Number(1.0),
+            Expr::Number(2.0),
+            Expr::Number(3.0),
+            Expr::Number(4.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(24.0)));
+    }
+
+    #[test]
+    fn test_native_multiply_no_args() {
+        setup_tracing();
+        let env = Environment::new_with_prelude();
+        // (*)
+        let expr = Expr::List(vec![Expr::Symbol("*".to_string())]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(1.0)));
+    }
+    
+    #[test]
+    fn test_native_multiply_one_arg() {
+        setup_tracing();
+        let env = Environment::new_with_prelude();
+        // (* 5)
+        let expr = Expr::List(vec![
+            Expr::Symbol("*".to_string()),
+            Expr::Number(5.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(5.0)));
+    }
+
+    #[test]
+    fn test_native_multiply_with_zero() {
+        setup_tracing();
+        let env = Environment::new_with_prelude();
+        // (* 5 0 2)
+        let expr = Expr::List(vec![
+            Expr::Symbol("*".to_string()),
+            Expr::Number(5.0),
+            Expr::Number(0.0),
+            Expr::Number(2.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(0.0)));
+    }
+
+    #[test]
+    fn test_native_multiply_type_error() {
+        setup_tracing();
+        let env = Environment::new_with_prelude();
+        // (* 2 true)
+        let expr = Expr::List(vec![
+            Expr::Symbol("*".to_string()),
+            Expr::Number(2.0),
+            Expr::Bool(true), // Not a number
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::TypeError {
+                expected: "Number".to_string(),
+                found: "Bool(true)".to_string()
             })
         );
     }

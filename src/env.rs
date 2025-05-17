@@ -1,5 +1,5 @@
-use crate::ast::{Expr, NativeFunction}; // Added NativeFunction
-use crate::builtins::{native_add, native_equals}; // Added native functions
+use crate::ast::{Expr, NativeFunction};
+use crate::builtins::{native_add, native_equals, native_multiply}; // Added native_multiply
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -35,6 +35,13 @@ impl Environment {
                 Expr::NativeFunction(NativeFunction {
                     name: "=".to_string(),
                     func: native_equals,
+                }),
+            );
+            env_borrowed.define(
+                "*".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "*".to_string(),
+                    func: native_multiply,
                 }),
             );
             // Add other prelude functions here as they are implemented
@@ -89,7 +96,7 @@ mod tests {
     #[test]
     fn define_and_get_in_root_env() {
         setup_tracing();
-        let env = Environment::new();
+        let env = Environment::new_with_prelude(); // Use new_with_prelude for consistency if tests might rely on prelude
         env.borrow_mut().define("x".to_string(), Expr::Number(10.0));
         assert_eq!(env.borrow().get("x"), Some(Expr::Number(10.0)));
     }
@@ -97,7 +104,7 @@ mod tests {
     #[test]
     fn get_from_outer_env() {
         setup_tracing();
-        let outer_env = Environment::new();
+        let outer_env = Environment::new_with_prelude();
         outer_env
             .borrow_mut()
             .define("x".to_string(), Expr::Number(10.0));
@@ -109,7 +116,7 @@ mod tests {
     #[test]
     fn define_in_inner_shadows_outer() {
         setup_tracing();
-        let outer_env = Environment::new();
+        let outer_env = Environment::new_with_prelude();
         outer_env
             .borrow_mut()
             .define("x".to_string(), Expr::Number(10.0));
@@ -127,14 +134,14 @@ mod tests {
     #[test]
     fn get_undefined_variable() {
         setup_tracing();
-        let env = Environment::new();
+        let env = Environment::new_with_prelude();
         assert_eq!(env.borrow().get("non_existent"), None);
     }
 
     #[test]
     fn redefine_variable_in_same_env() {
         setup_tracing();
-        let env = Environment::new();
+        let env = Environment::new_with_prelude();
         env.borrow_mut().define("x".to_string(), Expr::Number(10.0));
         env.borrow_mut().define("x".to_string(), Expr::Number(20.0)); // Redefine
         assert_eq!(env.borrow().get("x"), Some(Expr::Number(20.0)));
