@@ -76,19 +76,7 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
 #[cfg(test)]
 mod tests {
     use super::*; // Imports eval, Expr, LispError, Environment, Rc, RefCell
-
-    // Helper to initialize tracing for tests, ensuring it's only done once.
-    fn setup_tracing() {
-        use std::sync::Once;
-        static TRACING_INIT: Once = Once::new();
-        TRACING_INIT.call_once(|| {
-            tracing_subscriber::fmt()
-                .with_env_filter("trace") // Show all traces for tests
-                .with_test_writer() // Capture output for tests
-                .try_init()
-                .ok(); // Ignore error if already initialized by another test
-        });
-    }
+    use crate::test_utils::setup_tracing; // Use shared setup_tracing
 
     #[test]
     fn eval_number() {

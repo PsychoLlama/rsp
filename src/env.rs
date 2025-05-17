@@ -61,18 +61,7 @@ impl Environment {
 mod tests {
     use super::*;
     use crate::ast::Expr;
-
-    fn setup_tracing() {
-        use std::sync::Once;
-        static TRACING_INIT: Once = Once::new();
-        TRACING_INIT.call_once(|| {
-            tracing_subscriber::fmt()
-                .with_env_filter("trace")
-                .with_test_writer()
-                .try_init()
-                .ok();
-        });
-    }
+    use crate::test_utils::setup_tracing; // Use shared setup_tracing
 
     #[test]
     fn define_and_get_in_root_env() {
