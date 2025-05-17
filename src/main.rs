@@ -17,7 +17,6 @@ struct Cli {
     /// Parsing this string into an AST is not yet implemented.
     #[clap(short, long)]
     expression: Option<String>,
-
     // Consider adding a flag for REPL mode in the future:
     // #[clap(short, long, action)]
     // repl: bool,
