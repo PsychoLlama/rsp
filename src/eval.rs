@@ -42,17 +42,51 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
             debug!(env = ?env.borrow(), "Evaluating List: {:?}", list);
             if list.is_empty() {
                 trace!("List is empty, evaluating to empty list");
-                // An empty list `()` typically evaluates to itself or a 'nil' equivalent.
-                Ok(Expr::List(Vec::new()))
-            } else {
-                trace!("List is not empty, attempting to evaluate as function/special form (not implemented)");
-                // This is where function calls and special forms would be handled.
-                // For example, if list[0] is a symbol like '+', it would be a function call.
-                // This part will be significantly expanded.
-                warn!(?list, "List evaluation (function calls, special forms) not yet implemented");
-                Err(LispError::Evaluation(
-                    "List evaluation (function calls, special forms) not yet implemented".to_string(),
-                ))
+                return Ok(Expr::List(Vec::new())); // Empty list evaluates to itself
+            }
+
+            // Handle special forms and function calls
+            let first_form = &list[0];
+            match first_form {
+                Expr::Symbol(s) if s == "let" => {
+                    trace!(symbol_name = %s, "Handling 'let' special form");
+                    if list.len() != 3 {
+                        error!("'let' special form requires 2 arguments (variable name and value), found {}", list.len() - 1);
+                        return Err(LispError::ArityMismatch(
+                            format!("'let' expects 2 arguments, got {}", list.len() - 1),
+                        ));
+                    }
+
+                    let var_name_expr = &list[1];
+                    let value_expr = &list[2];
+
+                    let var_name = match var_name_expr {
+                        Expr::Symbol(name) => name.clone(),
+                        _ => {
+                            error!("First argument to 'let' must be a symbol, found {:?}", var_name_expr);
+                            return Err(LispError::TypeError {
+                                expected: "Symbol".to_string(),
+                                found: format!("{:?}", var_name_expr),
+                            });
+                        }
+                    };
+
+                    debug!(variable_name = %var_name, value_expression = ?value_expr, "'let' binding");
+                    let evaluated_value = eval(value_expr, Rc::clone(&env))?;
+                    
+                    env.borrow_mut().define(var_name.clone(), evaluated_value.clone());
+                    debug!(variable_name = %var_name, value = ?evaluated_value, "Defined variable in environment using 'let'");
+                    Ok(evaluated_value)
+                }
+                // Placeholder for other function calls or special forms
+                _ => {
+                    trace!("List is not empty, and first element is not a recognized special form. Attempting to evaluate as function/special form (not implemented)");
+                    // This is where other function calls and special forms would be handled.
+                    warn!(?list, "List evaluation (function calls, special forms) not yet implemented for this case");
+                    Err(LispError::Evaluation(
+                        format!("Don't know how to evaluate list starting with: {:?}", first_form),
+                    ))
+                }
             }
         }
     }
@@ -136,12 +170,103 @@ mod tests {
     fn eval_non_empty_list_not_implemented() {
         setup_tracing();
         let env = Environment::new();
-        let expr = Expr::List(vec![Expr::Symbol("foo".to_string()), Expr::Number(1.0)]);
+        let expr = Expr::List(vec![Expr::Symbol("unknown_function".to_string()), Expr::Number(1.0)]);
         assert_eq!(
             eval(&expr, env),
             Err(LispError::Evaluation(
-                "List evaluation (function calls, special forms) not yet implemented".to_string()
+                "Don't know how to evaluate list starting with: Symbol(\"unknown_function\")".to_string()
             ))
+        );
+    }
+
+    #[test]
+    fn eval_let_binding() {
+        setup_tracing();
+        let env = Environment::new();
+        // (let x 10)
+        let let_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Symbol("x".to_string()),
+            Expr::Number(10.0),
+        ]);
+        // `let` should evaluate to the bound value
+        assert_eq!(eval(&let_expr, Rc::clone(&env)), Ok(Expr::Number(10.0)));
+        // Check if 'x' is defined in the environment
+        assert_eq!(env.borrow().get("x"), Some(Expr::Number(10.0)));
+
+        // Evaluate 'x' after binding
+        let x_sym = Expr::Symbol("x".to_string());
+        assert_eq!(eval(&x_sym, Rc::clone(&env)), Ok(Expr::Number(10.0)));
+    }
+
+    #[test]
+    fn eval_let_binding_evaluates_value() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define("y".to_string(), Expr::Number(5.0));
+        // (let x (some_expr_evaluating_to_y_times_2)) - for now, just use y
+        // (let x y) where y is 5
+        let let_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Symbol("x".to_string()),
+            Expr::Symbol("y".to_string()), // This will be evaluated
+        ]);
+        assert_eq!(eval(&let_expr, Rc::clone(&env)), Ok(Expr::Number(5.0)));
+        assert_eq!(env.borrow().get("x"), Some(Expr::Number(5.0)));
+    }
+
+    #[test]
+    fn eval_let_arity_error_too_few_args() {
+        setup_tracing();
+        let env = Environment::new();
+        // (let x) - missing value
+        let let_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Symbol("x".to_string()),
+        ]);
+        assert_eq!(
+            eval(&let_expr, env),
+            Err(LispError::ArityMismatch(
+                "'let' expects 2 arguments, got 1".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn eval_let_arity_error_too_many_args() {
+        setup_tracing();
+        let env = Environment::new();
+        // (let x 10 20) - extra argument
+        let let_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Symbol("x".to_string()),
+            Expr::Number(10.0),
+            Expr::Number(20.0),
+        ]);
+        assert_eq!(
+            eval(&let_expr, env),
+            Err(LispError::ArityMismatch(
+                "'let' expects 2 arguments, got 3".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn eval_let_type_error_non_symbol_for_var_name() {
+        setup_tracing();
+        let env = Environment::new();
+        // (let 10 20) - first arg (var name) is not a symbol
+        let let_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Number(10.0), // Not a symbol
+            Expr::Number(20.0),
+        ]);
+        assert_eq!(
+            eval(&let_expr, env),
+            Err(LispError::TypeError {
+                expected: "Symbol".to_string(),
+                found: "Number(10.0)".to_string()
+            })
         );
     }
 }
