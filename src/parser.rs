@@ -534,11 +534,11 @@ mod tests {
         let result = parse_expr("(1-2)");
         assert!(result.is_err(), "Parsing (1-2) should fail as 1-2 is not a valid expr. Got: {:?}", result);
 
-        // "(+1)" should be a list with one symbol "+1" if symbols can be like that.
-        // `+` is an initial_char, `1` is a subsequent_char. So `+1` is a symbol.
+        // "(+1)" will be parsed as List([Number(1.0)]) because parse_number_raw takes precedence
+        // over parse_symbol_raw for the token "+1", and nom::number::complete::double parses "+1" as 1.0.
          assert_eq!(
             parse_expr("(+1)"),
-            Ok(("", Expr::List(vec![Expr::Symbol("+1".to_string())])))
+            Ok(("", Expr::List(vec![Expr::Number(1.0)])))
         );
     }
 }
