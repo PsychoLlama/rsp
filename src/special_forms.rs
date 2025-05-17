@@ -1,7 +1,7 @@
 //! Defines special forms (keywords) for the Lisp interpreter.
 
 /// Array of special form names. These are reserved and cannot be used as variable names in `let`.
-pub const SPECIAL_FORMS: &[&str] = &["let", "quote", "fn"];
+pub const SPECIAL_FORMS: &[&str] = &["let", "quote", "fn", "if"];
 
 /// Checks if a given name is a special form.
 ///
@@ -18,6 +18,7 @@ pub fn is_special_form(name: &str) -> bool {
 pub const LET: &str = "let";
 pub const QUOTE: &str = "quote";
 pub const FN: &str = "fn";
+pub const IF: &str = "if";
 
 #[cfg(test)]
 mod tests {
@@ -28,7 +29,7 @@ mod tests {
         assert!(is_special_form("let"));
         assert!(is_special_form("quote"));
         assert!(is_special_form("fn"));
-        assert!(!is_special_form("if")); // Assuming 'if' is not yet a special form
+        assert!(is_special_form("if"));
         assert!(!is_special_form("my-function"));
         assert!(!is_special_form(""));
     }
@@ -38,5 +39,6 @@ mod tests {
         assert_eq!(LET, "let");
         assert_eq!(QUOTE, "quote");
         assert_eq!(FN, "fn");
+        assert_eq!(IF, "if");
     }
 }

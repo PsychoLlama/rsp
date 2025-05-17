@@ -135,6 +135,46 @@ pub fn eval_quote(args: &[Expr]) -> Result<Expr, LispError> {
     Ok(args[0].clone())
 }
 
+#[tracing::instrument(skip(args, env), fields(args = ?args), ret, err)]
+pub fn eval_if(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
+    trace!("Executing 'if' special form");
+    if args.len() < 2 || args.len() > 3 {
+        error!(
+            "'if' special form requires 2 or 3 arguments (condition, then-branch, [else-branch]), found {}",
+            args.len()
+        );
+        return Err(LispError::ArityMismatch(format!(
+            "'if' expects 2 or 3 arguments, got {}",
+            args.len()
+        )));
+    }
+
+    let condition_expr = &args[0];
+    let then_expr = &args[1];
+    let else_expr_opt = args.get(2);
+
+    let condition_result = crate::eval::eval(condition_expr, Rc::clone(&env))?;
+    debug!(?condition_result, "Evaluated 'if' condition");
+
+    match condition_result {
+        Expr::Bool(false) | Expr::Nil => {
+            // Condition is false or nil, evaluate else-branch or return Nil
+            if let Some(else_expr) = else_expr_opt {
+                trace!("Condition is false-y, evaluating else-branch");
+                crate::eval::eval(else_expr, env)
+            } else {
+                trace!("Condition is false-y, no else-branch, returning Nil");
+                Ok(Expr::Nil)
+            }
+        }
+        _ => {
+            // Condition is truthy (anything not false or Nil)
+            trace!("Condition is truthy, evaluating then-branch");
+            crate::eval::eval(then_expr, env)
+        }
+    }
+}
+
 // Future built-in functions will go here.
 
 #[cfg(test)]
@@ -508,5 +548,187 @@ mod tests {
                 "'quote' expects 1 argument, got 2".to_string()
             ))
         );
+    }
+
+    // Tests for 'if' special form
+    #[test]
+    fn eval_if_true_condition() {
+        setup_tracing();
+        let env = Environment::new();
+        // (if true 10 20)
+        let expr = Expr::List(vec![
+            Expr::Symbol("if".to_string()),
+            Expr::Bool(true),
+            Expr::Number(10.0),
+            Expr::Number(20.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(10.0)));
+    }
+
+    #[test]
+    fn eval_if_false_condition() {
+        setup_tracing();
+        let env = Environment::new();
+        // (if false 10 20)
+        let expr = Expr::List(vec![
+            Expr::Symbol("if".to_string()),
+            Expr::Bool(false),
+            Expr::Number(10.0),
+            Expr::Number(20.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(20.0)));
+    }
+
+    #[test]
+    fn eval_if_nil_condition() {
+        setup_tracing();
+        let env = Environment::new();
+        // (if nil 10 20)
+        let expr = Expr::List(vec![
+            Expr::Symbol("if".to_string()),
+            Expr::Nil,
+            Expr::Number(10.0),
+            Expr::Number(20.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(20.0)));
+    }
+
+    #[test]
+    fn eval_if_truthy_number_condition() {
+        setup_tracing();
+        let env = Environment::new();
+        // (if 0 10 20) ; 0 is truthy in this Lisp
+        let expr = Expr::List(vec![
+            Expr::Symbol("if".to_string()),
+            Expr::Number(0.0),
+            Expr::Number(10.0),
+            Expr::Number(20.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(10.0)));
+    }
+
+    #[test]
+    fn eval_if_truthy_list_condition() {
+        setup_tracing();
+        let env = Environment::new();
+        // (if () 10 20) ; empty list is truthy
+        let expr = Expr::List(vec![
+            Expr::Symbol("if".to_string()),
+            Expr::List(vec![]),
+            Expr::Number(10.0),
+            Expr::Number(20.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(10.0)));
+    }
+    
+    #[test]
+    fn eval_if_false_condition_no_else_branch() {
+        setup_tracing();
+        let env = Environment::new();
+        // (if false 10)
+        let expr = Expr::List(vec![
+            Expr::Symbol("if".to_string()),
+            Expr::Bool(false),
+            Expr::Number(10.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Nil));
+    }
+
+    #[test]
+    fn eval_if_true_condition_no_else_branch() {
+        setup_tracing();
+        let env = Environment::new();
+        // (if true 10)
+        let expr = Expr::List(vec![
+            Expr::Symbol("if".to_string()),
+            Expr::Bool(true),
+            Expr::Number(10.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(10.0)));
+    }
+
+    #[test]
+    fn eval_if_condition_evaluates() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define("cond-var".to_string(), Expr::Bool(true));
+        // (if cond-var 10 20)
+        let expr = Expr::List(vec![
+            Expr::Symbol("if".to_string()),
+            Expr::Symbol("cond-var".to_string()),
+            Expr::Number(10.0),
+            Expr::Number(20.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(10.0)));
+    }
+
+    #[test]
+    fn eval_if_arity_error_too_few_args() {
+        setup_tracing();
+        let env = Environment::new();
+        // (if true)
+        let expr = Expr::List(vec![
+            Expr::Symbol("if".to_string()),
+            Expr::Bool(true),
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::ArityMismatch(
+                "'if' expects 2 or 3 arguments, got 1".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn eval_if_arity_error_too_many_args() {
+        setup_tracing();
+        let env = Environment::new();
+        // (if true 10 20 30)
+        let expr = Expr::List(vec![
+            Expr::Symbol("if".to_string()),
+            Expr::Bool(true),
+            Expr::Number(10.0),
+            Expr::Number(20.0),
+            Expr::Number(30.0),
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::ArityMismatch(
+                "'if' expects 2 or 3 arguments, got 4".to_string()
+            ))
+        );
+    }
+
+    // Test that only the correct branch is evaluated (short-circuiting)
+    // This test defines 'then-val' but not 'else-val'. If 'else-val' were evaluated, it would error.
+    #[test]
+    fn eval_if_short_circuit_then_branch() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define("then-val".to_string(), Expr::Number(100.0));
+        // (if true then-val else-val) ; else-val is undefined
+        let expr = Expr::List(vec![
+            Expr::Symbol("if".to_string()),
+            Expr::Bool(true),
+            Expr::Symbol("then-val".to_string()),
+            Expr::Symbol("else-val".to_string()), // This should not be evaluated
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(100.0)));
+    }
+
+    // This test defines 'else-val' but not 'then-val'. If 'then-val' were evaluated, it would error.
+    #[test]
+    fn eval_if_short_circuit_else_branch() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define("else-val".to_string(), Expr::Number(200.0));
+        // (if false then-val else-val) ; then-val is undefined
+        let expr = Expr::List(vec![
+            Expr::Symbol("if".to_string()),
+            Expr::Bool(false),
+            Expr::Symbol("then-val".to_string()), // This should not be evaluated
+            Expr::Symbol("else-val".to_string()),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(200.0)));
     }
 }
