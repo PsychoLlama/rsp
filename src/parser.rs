@@ -79,49 +79,56 @@ fn parse_symbol_raw(input: &str) -> IResult<&str, Expr> {
 }
 
 // Parses a list of expressions e.g. (a b c) or (+ 1 2) - raw token (parens are part of token).
+// This function is recursive with expr_recursive_impl.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
-fn parse_list_raw(input: &str) -> IResult<&str, Expr> {
+fn list_raw(input: &str) -> IResult<&str, Expr> {
     trace!("Attempting to parse raw list token");
     delimited(
-        tag("("), // Matches the opening parenthesis
-        // `separated_list0` parses zero or more occurrences of `parse_expr`,
-        // separated by one or more whitespace characters.
-        separated_list0(
-            multispace1, // The separator between elements
-            parse_expr   // The public, whitespace-aware parser for each element
+        // Consume (
+        tag("("),
+        // Consume elements separated by multispace1, handling whitespace around each element.
+        // Also consume any whitespace before the closing parenthesis.
+        terminated(
+            separated_list0(
+                multispace1, // Separator: one or more whitespace chars
+                // Element parser: consumes leading whitespace, then one core expression
+                preceded(multispace0, expr_recursive_impl) 
+            ),
+            multispace0 // Consume trailing whitespace before the closing parenthesis
         ),
-        tag(")")  // Matches the closing parenthesis
+        // Consume )
+        tag(")")
     )
-    .map(Expr::List) // Converts the Vec<Expr> from separated_list0 into Expr::List
+    .map(Expr::List)
     .parse(input)
 }
 
-// Core parser for any single expression type, without leading/trailing whitespace.
-// This is used by parse_expr and recursively by parse_list_raw.
+// Core recursive parser for any single expression type (atom or list), without surrounding whitespace.
+// This is the heart of the recursive descent.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
-fn parse_expr_core(input: &str) -> IResult<&str, Expr> {
-    trace!("Attempting to parse core expression token");
+fn expr_recursive_impl(input: &str) -> IResult<&str, Expr> {
+    trace!("Attempting to parse core expression token (recursive_impl)");
     alt((
         parse_number_raw,
         parse_true_raw,
         parse_false_raw,
         parse_nil_raw,
-        parse_list_raw,   // Try parsing a list before a general symbol
+        list_raw,   // list_raw is now an alternative here
         parse_symbol_raw,
     ))
     .parse(input)
 }
 
 // Top-level parser function for a single expression.
-// Handles leading whitespace before parsing the core expression.
-// Also handles trailing whitespace after the expression (implicitly, as parse_expr_core consumes what it needs
-// and leaves the rest; if this is used in `separated_list0`, the separator handles intermediate space).
+// Handles leading AND trailing whitespace around the core expression.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
 pub fn parse_expr(input: &str) -> IResult<&str, Expr> {
-    trace!("Attempting to parse expression (with whitespace handling)");
-    // Each expression unit handles its own leading whitespace.
-    // Trailing whitespace is handled by the context (e.g. separator in a list, or end of input).
-    preceded(multispace0, parse_expr_core).parse(input)
+    trace!("Attempting to parse expression (with surrounding whitespace handling)");
+    delimited(
+        multispace0, // Consume leading whitespace
+        expr_recursive_impl, // Parse the core expression
+        multispace0  // Consume trailing whitespace
+    ).parse(input)
 }
 
 
