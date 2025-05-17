@@ -41,3 +41,37 @@ pub fn eval(expr: &Expr /*, env: &mut Environment */) -> Result<Expr, LispError>
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*; // Imports eval, Expr, LispError
+
+    #[test]
+    fn eval_number() {
+        let expr = Expr::Number(42.0);
+        assert_eq!(eval(&expr), Ok(Expr::Number(42.0)));
+    }
+
+    #[test]
+    fn eval_symbol_undefined() {
+        let expr = Expr::Symbol("my_var".to_string());
+        assert_eq!(eval(&expr), Err(LispError::UndefinedSymbol("my_var".to_string())));
+    }
+
+    #[test]
+    fn eval_empty_list() {
+        let expr = Expr::List(vec![]);
+        assert_eq!(eval(&expr), Ok(Expr::List(vec![])));
+    }
+
+    #[test]
+    fn eval_non_empty_list_not_implemented() {
+        let expr = Expr::List(vec![Expr::Symbol("foo".to_string()), Expr::Number(1.0)]);
+        assert_eq!(
+            eval(&expr),
+            Err(LispError::Evaluation(
+                "List evaluation (function calls, special forms) not yet implemented".to_string()
+            ))
+        );
+    }
+}
