@@ -1,7 +1,7 @@
 
 use nom::{
     character::complete::multispace0, // For handling whitespace, removed multispace1
-    combinator::map,                  // To map parser output
+    // combinator::map, // Removed as Parser::map method is used
     number::complete::double,                        // For parsing f64 numbers
     sequence::delimited,                             // For parsers surrounded by other parsers
     IResult,
@@ -13,9 +13,9 @@ use crate::ast::Expr; // Assuming your AST expressions are in ast::Expr
 
 // Helper to consume whitespace around a parser
 // Takes a parser `inner` and returns a new parser that consumes whitespace around `inner`.
-fn ws<'a, P, O, E>(inner: P) -> impl nom::Parser<&'a str, O, E>
+fn ws<'a, P, O, E>(inner: P) -> impl nom::Parser<&'a str, Output = O, Error = E>
 where
-    P: nom::Parser<&'a str, O, E>,
+    P: nom::Parser<&'a str, Output = O, Error = E>,
     E: nom::error::ParseError<&'a str>,
 {
     delimited(multispace0, inner, multispace0)
