@@ -1,7 +1,7 @@
 
 use nom::{
-    character::complete::{multispace0, multispace1}, // For handling whitespace
-    combinator::map,                                 // To map parser output
+    character::complete::multispace0, // For handling whitespace, removed multispace1
+    combinator::map,                  // To map parser output
     number::complete::double,                        // For parsing f64 numbers
     sequence::delimited,                             // For parsers surrounded by other parsers
     IResult,
@@ -12,11 +12,11 @@ use tracing::trace; // For logging parser activity
 use crate::ast::Expr; // Assuming your AST expressions are in ast::Expr
 
 // Helper to consume whitespace around a parser
-fn ws<'a, F, O, E: nom::error::ParseError<&'a str>>(
-    inner: F,
-) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
+// Takes a parser `inner` and returns a new parser that consumes whitespace around `inner`.
+fn ws<'a, P, O, E>(inner: P) -> impl nom::Parser<&'a str, O, E>
 where
-    F: FnMut(&'a str) -> IResult<&'a str, O, E>,
+    P: nom::Parser<&'a str, O, E>,
+    E: nom::error::ParseError<&'a str>,
 {
     delimited(multispace0, inner, multispace0)
 }
@@ -25,7 +25,10 @@ where
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
 fn parse_number(input: &str) -> IResult<&str, Expr> {
     trace!("Attempting to parse number");
-    map(ws(double), Expr::Number)(input)
+    // ws(double) returns a parser.
+    // .map(Expr::Number) is the Parser trait's map method, returning a new parser.
+    // .parse(input) executes the parser.
+    (ws(double).map(Expr::Number)).parse(input)
 }
 
 // Top-level parser function for a single expression
