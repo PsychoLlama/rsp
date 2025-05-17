@@ -51,10 +51,14 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                 Expr::Symbol(s) if s == "let" => {
                     trace!(symbol_name = %s, "Handling 'let' special form");
                     if list.len() != 3 {
-                        error!("'let' special form requires 2 arguments (variable name and value), found {}", list.len() - 1);
-                        return Err(LispError::ArityMismatch(
-                            format!("'let' expects 2 arguments, got {}", list.len() - 1),
-                        ));
+                        error!(
+                            "'let' special form requires 2 arguments (variable name and value), found {}",
+                            list.len() - 1
+                        );
+                        return Err(LispError::ArityMismatch(format!(
+                            "'let' expects 2 arguments, got {}",
+                            list.len() - 1
+                        )));
                     }
 
                     let var_name_expr = &list[1];
@@ -63,7 +67,10 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                     let var_name = match var_name_expr {
                         Expr::Symbol(name) => name.clone(),
                         _ => {
-                            error!("First argument to 'let' must be a symbol, found {:?}", var_name_expr);
+                            error!(
+                                "First argument to 'let' must be a symbol, found {:?}",
+                                var_name_expr
+                            );
                             return Err(LispError::TypeError {
                                 expected: "Symbol".to_string(),
                                 found: format!("{:?}", var_name_expr),
@@ -73,19 +80,26 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
 
                     debug!(variable_name = %var_name, value_expression = ?value_expr, "'let' binding");
                     let evaluated_value = eval(value_expr, Rc::clone(&env))?;
-                    
-                    env.borrow_mut().define(var_name.clone(), evaluated_value.clone());
+
+                    env.borrow_mut()
+                        .define(var_name.clone(), evaluated_value.clone());
                     debug!(variable_name = %var_name, value = ?evaluated_value, "Defined variable in environment using 'let'");
                     Ok(evaluated_value)
                 }
                 // Placeholder for other function calls or special forms
                 _ => {
-                    trace!("List is not empty, and first element is not a recognized special form. Attempting to evaluate as function/special form (not implemented)");
+                    trace!(
+                        "List is not empty, and first element is not a recognized special form. Attempting to evaluate as function/special form (not implemented)"
+                    );
                     // This is where other function calls and special forms would be handled.
-                    warn!(?list, "List evaluation (function calls, special forms) not yet implemented for this case");
-                    Err(LispError::Evaluation(
-                        format!("Don't know how to evaluate list starting with: {:?}", first_form),
-                    ))
+                    warn!(
+                        ?list,
+                        "List evaluation (function calls, special forms) not yet implemented for this case"
+                    );
+                    Err(LispError::Evaluation(format!(
+                        "Don't know how to evaluate list starting with: {:?}",
+                        first_form
+                    )))
                 }
             }
         }
@@ -121,7 +135,8 @@ mod tests {
     fn eval_symbol_defined_in_env() {
         setup_tracing();
         let env = Environment::new();
-        env.borrow_mut().define("x".to_string(), Expr::Number(100.0));
+        env.borrow_mut()
+            .define("x".to_string(), Expr::Number(100.0));
         let expr = Expr::Symbol("x".to_string());
         assert_eq!(eval(&expr, env), Ok(Expr::Number(100.0)));
     }
@@ -130,20 +145,26 @@ mod tests {
     fn eval_symbol_defined_in_outer_env() {
         setup_tracing();
         let outer_env = Environment::new();
-        outer_env.borrow_mut().define("x".to_string(), Expr::Number(100.0));
+        outer_env
+            .borrow_mut()
+            .define("x".to_string(), Expr::Number(100.0));
         let inner_env = Environment::new_enclosed(outer_env);
         let expr = Expr::Symbol("x".to_string());
         assert_eq!(eval(&expr, inner_env), Ok(Expr::Number(100.0)));
     }
-    
+
     #[test]
     fn eval_symbol_shadowed() {
         setup_tracing();
         let outer_env = Environment::new();
-        outer_env.borrow_mut().define("x".to_string(), Expr::Number(100.0));
+        outer_env
+            .borrow_mut()
+            .define("x".to_string(), Expr::Number(100.0));
         let inner_env = Environment::new_enclosed(outer_env.clone());
-        inner_env.borrow_mut().define("x".to_string(), Expr::Number(200.0)); // Shadow
-        
+        inner_env
+            .borrow_mut()
+            .define("x".to_string(), Expr::Number(200.0)); // Shadow
+
         let expr = Expr::Symbol("x".to_string());
         assert_eq!(eval(&expr, inner_env), Ok(Expr::Number(200.0)));
         // Ensure outer is not affected by eval call on inner
@@ -155,7 +176,10 @@ mod tests {
         setup_tracing();
         let env = Environment::new();
         let expr = Expr::Symbol("my_var".to_string());
-        assert_eq!(eval(&expr, env), Err(LispError::UndefinedSymbol("my_var".to_string())));
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::UndefinedSymbol("my_var".to_string()))
+        );
     }
 
     #[test]
@@ -170,11 +194,15 @@ mod tests {
     fn eval_non_empty_list_not_implemented() {
         setup_tracing();
         let env = Environment::new();
-        let expr = Expr::List(vec![Expr::Symbol("unknown_function".to_string()), Expr::Number(1.0)]);
+        let expr = Expr::List(vec![
+            Expr::Symbol("unknown_function".to_string()),
+            Expr::Number(1.0),
+        ]);
         assert_eq!(
             eval(&expr, env),
             Err(LispError::Evaluation(
-                "Don't know how to evaluate list starting with: Symbol(\"unknown_function\")".to_string()
+                "Don't know how to evaluate list starting with: Symbol(\"unknown_function\")"
+                    .to_string()
             ))
         );
     }
