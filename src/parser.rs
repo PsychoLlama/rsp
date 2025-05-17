@@ -8,7 +8,7 @@ use nom::{
     combinator::recognize,                           // For transforming and recognizing parser output (removed map)
     multi::{many0, separated_list0},                 // For repeating parsers
     number::complete::double,                        // For parsing f64 numbers
-    sequence::{delimited, pair, preceded},            // For sequencing parsers (added preceded)
+    sequence::{delimited, pair, preceded, terminated}, // For sequencing parsers (added preceded, terminated)
     IResult,
     Parser, // Import the Parser trait to use its methods like .map() and .parse()
 };
