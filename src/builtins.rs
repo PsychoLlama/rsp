@@ -51,6 +51,112 @@ pub fn eval_let(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Li
 
 #[cfg(test)]
 mod tests {
-    // If we had tests specific to the internal logic of builtins, they would go here.
-    // For now, `let` is tested via `eval.rs` which covers its integration.
+    use super::*; // Imports eval_let
+    use crate::ast::Expr;
+    use crate::env::Environment;
+    use crate::eval::{eval, LispError}; // Need main eval for testing integration
+    use std::rc::Rc; // For Environment
+
+    // Helper to initialize tracing for tests, ensuring it's only done once.
+    fn setup_tracing() {
+        use std::sync::Once;
+        static TRACING_INIT: Once = Once::new();
+        TRACING_INIT.call_once(|| {
+            tracing_subscriber::fmt()
+                .with_env_filter("trace") // Show all traces for tests
+                .with_test_writer() // Capture output for tests
+                .try_init()
+                .ok(); // Ignore error if already initialized by another test
+        });
+    }
+
+    #[test]
+    fn eval_let_binding() {
+        setup_tracing();
+        let env = Environment::new();
+        // (let x 10)
+        let let_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()), // This will be handled by eval, dispatching to eval_let
+            Expr::Symbol("x".to_string()),
+            Expr::Number(10.0),
+        ]);
+        // `let` should evaluate to the bound value
+        assert_eq!(eval(&let_expr, Rc::clone(&env)), Ok(Expr::Number(10.0)));
+        // Check if 'x' is defined in the environment
+        assert_eq!(env.borrow().get("x"), Some(Expr::Number(10.0)));
+
+        // Evaluate 'x' after binding
+        let x_sym = Expr::Symbol("x".to_string());
+        assert_eq!(eval(&x_sym, Rc::clone(&env)), Ok(Expr::Number(10.0)));
+    }
+
+    #[test]
+    fn eval_let_binding_evaluates_value() {
+        setup_tracing();
+        let env = Environment::new();
+        env.borrow_mut().define("y".to_string(), Expr::Number(5.0));
+        // (let x y) where y is 5
+        let let_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Symbol("x".to_string()),
+            Expr::Symbol("y".to_string()), // This will be evaluated by the inner call to `eval`
+        ]);
+        assert_eq!(eval(&let_expr, Rc::clone(&env)), Ok(Expr::Number(5.0)));
+        assert_eq!(env.borrow().get("x"), Some(Expr::Number(5.0)));
+    }
+
+    #[test]
+    fn eval_let_arity_error_too_few_args() {
+        setup_tracing();
+        let env = Environment::new();
+        // (let x) - missing value
+        let let_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Symbol("x".to_string()),
+        ]);
+        assert_eq!(
+            eval(&let_expr, env),
+            Err(LispError::ArityMismatch(
+                "'let' expects 2 arguments, got 1".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn eval_let_arity_error_too_many_args() {
+        setup_tracing();
+        let env = Environment::new();
+        // (let x 10 20) - extra argument
+        let let_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Symbol("x".to_string()),
+            Expr::Number(10.0),
+            Expr::Number(20.0),
+        ]);
+        assert_eq!(
+            eval(&let_expr, env),
+            Err(LispError::ArityMismatch(
+                "'let' expects 2 arguments, got 3".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn eval_let_type_error_non_symbol_for_var_name() {
+        setup_tracing();
+        let env = Environment::new();
+        // (let 10 20) - first arg (var name) is not a symbol
+        let let_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Number(10.0), // Not a symbol
+            Expr::Number(20.0),
+        ]);
+        assert_eq!(
+            eval(&let_expr, env),
+            Err(LispError::TypeError {
+                expected: "Symbol".to_string(),
+                found: "Number(10.0)".to_string()
+            })
+        );
+    }
 }
