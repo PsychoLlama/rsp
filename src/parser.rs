@@ -104,7 +104,7 @@ mod tests {
     fn test_parse_number_leaves_remaining_input() {
         setup_tracing();
         let result = parse_expr("123 abc");
-        assert_eq!(result, Ok((" abc", Expr::Number(123.0)))); // Note: " abc" has leading space due to ws consuming trailing space after number
+        assert_eq!(result, Ok(("abc", Expr::Number(123.0)))); // Corrected: ws consumes the space after the number
     }
     
     #[test]
