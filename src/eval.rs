@@ -547,7 +547,7 @@ mod tests {
             Expr::Symbol("my_fn".to_string()),
             Expr::Number(20.0), // Argument for param2
         ]);
-        assert_eq!(eval(&call_inner_fn_expr, env), Ok(Expr::Number(50.0)));
+        assert_eq!(eval(&call_inner_fn_expr, env), Ok(Expr::Number(777.0))); // Expect the closure to see the updated outer_val
     }
 
      #[test]
