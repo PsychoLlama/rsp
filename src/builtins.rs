@@ -234,6 +234,7 @@ pub fn native_equals(args: Vec<Expr>) -> Result<Expr, LispError> {
 
 #[cfg(test)]
 mod tests {
+    use super::{native_add, native_equals}; // Import parent module's functions
     use crate::ast::{Expr, LispFunction, NativeFunction}; // Added NativeFunction
     use crate::env::Environment;
     use crate::eval::{LispError, eval}; // Need main eval for testing integration
