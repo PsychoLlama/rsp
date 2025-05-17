@@ -16,50 +16,47 @@ use tracing::trace; // For logging parser activity
 
 use crate::ast::Expr; // Assuming your AST expressions are in ast::Expr
 
-// Helper to consume whitespace around a parser
+// Helper to consume whitespace around a parser (UNUSED after refactor, kept for now if needed elsewhere)
 // Takes a parser `inner` and returns a new parser that consumes whitespace around `inner`.
-fn ws<'a, P, O, E>(inner: P) -> impl nom::Parser<&'a str, Output = O, Error = E>
-where
-    P: nom::Parser<&'a str, Output = O, Error = E>,
-    E: nom::error::ParseError<&'a str>,
-{
-    delimited(multispace0, inner, multispace0)
+// fn ws<'a, P, O, E>(inner: P) -> impl nom::Parser<&'a str, Output = O, Error = E>
+// where
+//     P: nom::Parser<&'a str, Output = O, Error = E>,
+//     E: nom::error::ParseError<&'a str>,
+// {
+//     delimited(multispace0, inner, multispace0)
+// }
+
+// Parses a number (f64) into an Expr::Number - raw token, no surrounding whitespace handling.
+#[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
+fn parse_number_raw(input: &str) -> IResult<&str, Expr> {
+    trace!("Attempting to parse raw number token");
+    double.map(Expr::Number).parse(input)
 }
 
-// Parses a number (f64) into an Expr::Number
+// Parses the keyword "true" into an Expr::Bool(true) - raw token.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
-fn parse_number(input: &str) -> IResult<&str, Expr> {
-    trace!("Attempting to parse number");
-    // ws(double) returns a parser.
-    // .map(Expr::Number) is the Parser trait's map method, returning a new parser.
-    // .parse(input) executes the parser.
-    (ws(double).map(Expr::Number)).parse(input)
+fn parse_true_raw(input: &str) -> IResult<&str, Expr> {
+    trace!("Attempting to parse raw 'true' literal token");
+    tag("true").map(|_| Expr::Bool(true)).parse(input)
 }
 
-// Parses the keyword "true" into an Expr::Bool(true)
+// Parses the keyword "false" into an Expr::Bool(false) - raw token.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
-fn parse_true(input: &str) -> IResult<&str, Expr> {
-    trace!("Attempting to parse 'true' literal");
-    map(ws(tag("true")), |_| Expr::Bool(true)).parse(input)
+fn parse_false_raw(input: &str) -> IResult<&str, Expr> {
+    trace!("Attempting to parse raw 'false' literal token");
+    tag("false").map(|_| Expr::Bool(false)).parse(input)
 }
 
-// Parses the keyword "false" into an Expr::Bool(false)
+// Parses the keyword "nil" into an Expr::Nil - raw token.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
-fn parse_false(input: &str) -> IResult<&str, Expr> {
-    trace!("Attempting to parse 'false' literal");
-    map(ws(tag("false")), |_| Expr::Bool(false)).parse(input)
+fn parse_nil_raw(input: &str) -> IResult<&str, Expr> {
+    trace!("Attempting to parse raw 'nil' literal token");
+    tag("nil").map(|_| Expr::Nil).parse(input)
 }
 
-// Parses the keyword "nil" into an Expr::Nil
+// Parses a symbol - raw token.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
-fn parse_nil(input: &str) -> IResult<&str, Expr> {
-    trace!("Attempting to parse 'nil' literal");
-    map(ws(tag("nil")), |_| Expr::Nil).parse(input)
-}
-
-// Parses a symbol
-#[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
-fn parse_symbol(input: &str) -> IResult<&str, Expr> {
+fn parse_symbol_raw(input: &str) -> IResult<&str, Expr> {
     trace!("Attempting to parse symbol");
 
     // Define characters allowed to start a symbol
@@ -76,48 +73,57 @@ fn parse_symbol(input: &str) -> IResult<&str, Expr> {
     // `recognize` captures the consumed input slice.
     let symbol_str_parser = recognize(pair(initial_char, many0(subsequent_char)));
 
-    map(ws(symbol_str_parser), |s: &str| {
-        Expr::Symbol(s.to_string())
-    })
+    symbol_str_parser
+        .map(|s: &str| Expr::Symbol(s.to_string()))
+        .parse(input)
+}
+
+// Parses a list of expressions e.g. (a b c) or (+ 1 2) - raw token (parens are part of token).
+#[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
+fn parse_list_raw(input: &str) -> IResult<&str, Expr> {
+    trace!("Attempting to parse raw list token");
+    delimited(
+        tag("("), // Matches the opening parenthesis
+        // `separated_list0` parses zero or more occurrences of `parse_expr`,
+        // separated by one or more whitespace characters.
+        separated_list0(
+            multispace1, // The separator between elements
+            parse_expr   // The public, whitespace-aware parser for each element
+        ),
+        tag(")")  // Matches the closing parenthesis
+    )
+    .map(Expr::List) // Converts the Vec<Expr> from separated_list0 into Expr::List
     .parse(input)
 }
 
-// Parses a list of expressions, e.g., (a b c) or (+ 1 2)
+// Core parser for any single expression type, without leading/trailing whitespace.
+// This is used by parse_expr and recursively by parse_list_raw.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
-fn parse_list(input: &str) -> IResult<&str, Expr> {
-    trace!("Attempting to parse list");
-    ws( // Handles whitespace around the entire list, e.g., "  (a b)  "
-        map(
-            delimited(
-                tag("("), // Matches the opening parenthesis
-                // `separated_list0` parses zero or more occurrences of `parse_expr`,
-                // separated by one or more whitespace characters.
-                separated_list0(
-                    multispace1, // The separator between elements
-                    parse_expr   // The parser for each element
-                ),
-                tag(")")  // Matches the closing parenthesis
-            ),
-            Expr::List // Converts the Vec<Expr> from separated_list0 into Expr::List
-        )
-    ).parse(input)
-}
-
-
-// Top-level parser function for a single expression
-#[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
-pub fn parse_expr(input: &str) -> IResult<&str, Expr> {
-    trace!("Attempting to parse expression");
+fn parse_expr_core(input: &str) -> IResult<&str, Expr> {
+    trace!("Attempting to parse core expression token");
     alt((
-        parse_number,
-        parse_true,
-        parse_false,
-        parse_nil,
-        parse_list,   // Try parsing a list before a general symbol
-        parse_symbol,
+        parse_number_raw,
+        parse_true_raw,
+        parse_false_raw,
+        parse_nil_raw,
+        parse_list_raw,   // Try parsing a list before a general symbol
+        parse_symbol_raw,
     ))
     .parse(input)
 }
+
+// Top-level parser function for a single expression.
+// Handles leading whitespace before parsing the core expression.
+// Also handles trailing whitespace after the expression (implicitly, as parse_expr_core consumes what it needs
+// and leaves the rest; if this is used in `separated_list0`, the separator handles intermediate space).
+#[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
+pub fn parse_expr(input: &str) -> IResult<&str, Expr> {
+    trace!("Attempting to parse expression (with whitespace handling)");
+    // Each expression unit handles its own leading whitespace.
+    // Trailing whitespace is handled by the context (e.g. separator in a list, or end of input).
+    preceded(multispace0, parse_expr_core).parse(input)
+}
+
 
 #[cfg(test)]
 mod tests {
