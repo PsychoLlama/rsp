@@ -118,6 +118,23 @@ pub fn eval_fn(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
     Ok(Expr::Function(lisp_fn))
 }
 
+#[tracing::instrument(skip(args), fields(args = ?args), ret, err)]
+pub fn eval_quote(args: &[Expr]) -> Result<Expr, LispError> {
+    trace!("Executing 'quote' special form");
+    if args.len() != 1 {
+        error!(
+            "'quote' special form requires 1 argument, found {}",
+            args.len()
+        );
+        return Err(LispError::ArityMismatch(format!(
+            "'quote' expects 1 argument, got {}",
+            args.len()
+        )));
+    }
+    // The argument to quote is not evaluated.
+    Ok(args[0].clone())
+}
+
 // Future built-in functions will go here.
 
 #[cfg(test)]

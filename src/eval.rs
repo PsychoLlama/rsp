@@ -58,19 +58,7 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                     builtins::eval_let(&list[1..], Rc::clone(&env))
                 }
                 Expr::Symbol(s) if s == special_forms::QUOTE => {
-                    trace!("Executing 'quote' special form");
-                    if list.len() != 2 {
-                        error!(
-                            "'quote' special form requires 1 argument, found {}",
-                            list.len() - 1
-                        );
-                        return Err(LispError::ArityMismatch(format!(
-                            "'quote' expects 1 argument, got {}",
-                            list.len() - 1
-                        )));
-                    }
-                    // The argument to quote is not evaluated.
-                    Ok(list[1].clone())
+                    builtins::eval_quote(&list[1..])
                 }
                 Expr::Symbol(s) if s == special_forms::FN => {
                     builtins::eval_fn(&list[1..], Rc::clone(&env))
