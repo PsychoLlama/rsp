@@ -1,0 +1,10 @@
+[package]
+name = "rust-lisp-interpreter"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.98"
+clap = { version = "4.5.38", features = ["cargo", "debug", "derive", "string", "env"] }
+nom = "8.0.0"
+thiserror = "2.0.12"
