@@ -11,9 +11,14 @@ mod test_utils;
 use anyhow::Result;
 use clap::Parser;
 use tracing::info;
-// To construct example AST nodes (ast::Expr) and handle evaluation errors (eval::LispError)
-// are no longer directly used in main after moving examples to tests.
-// The modules themselves are still declared below.
+
+// Import necessary items for parsing and evaluation
+use crate::parser::parse_expr;
+use crate::eval::eval;
+use crate::env::Environment;
+use std::cell::RefCell; // For Rc<RefCell<Environment>>
+use std::rc::Rc;       // For Rc<RefCell<Environment>>
+
 
 /// A simple Lisp interpreter written in Rust.
 #[derive(Parser, Debug)]
@@ -44,13 +49,40 @@ fn main() -> Result<()> {
     info!(?cli, "Parsed CLI arguments");
 
     if let Some(expr_str) = cli.expression {
-        // TODO: Implement parsing of `expr_str` into an `ast::Expr`.
-        info!(expression = %expr_str, "Received expression string");
-        println!(
-            "Received expression string: \"{}\". Parsing and evaluation of strings is not yet implemented.",
-            expr_str
-        );
-        println!("Run 'cargo test' to see current evaluation capabilities.");
+        info!(expression = %expr_str, "Received expression string for parsing and evaluation");
+        match parse_expr(&expr_str) {
+            Ok((remaining_input, ast)) => {
+                if !remaining_input.trim().is_empty() {
+                    eprintln!("Error: Unexpected input found after expression: '{}'", remaining_input);
+                } else {
+                    info!(parsed_ast = ?ast, "Successfully parsed expression");
+                    let root_env = Environment::new();
+                    match eval(&ast, root_env) {
+                        Ok(result) => {
+                            info!(evaluation_result = ?result, "Evaluation successful");
+                            println!("{:?}", result);
+                        }
+                        Err(e) => {
+                            info!(evaluation_error = %e, "Evaluation error");
+                            eprintln!("Evaluation Error: {}", e);
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                // nom::Err can be complex. For a simple display:
+                let err_msg = match e {
+                    nom::Err::Incomplete(_) => "Parsing incomplete: More input needed.".to_string(),
+                    nom::Err::Error(e) | nom::Err::Failure(e) => {
+                        // e is nom::error::Error<I> or nom::error::VerboseError<I>
+                        // For simplicity, just format it. You might want more detailed error reporting.
+                        format!("Parsing Error: {:?}", e)
+                    }
+                };
+                info!(parsing_error = %err_msg, "Parsing failed");
+                eprintln!("{}", err_msg);
+            }
+        }
     } else {
         info!("No expression provided via CLI");
         // No expression provided via CLI.
