@@ -261,7 +261,7 @@ mod tests {
         assert_eq!(
             eval(&expr, env),
             Err(LispError::NotAFunction(
-                "Expected a function, but found: Number(10.0)".to_string()
+                "Expected a Lisp function or a native function, but found: Number(10.0)".to_string()
             ))
         );
     }
@@ -275,7 +275,7 @@ mod tests {
         assert_eq!(
             eval(&expr, env),
             Err(LispError::NotAFunction(
-                "Expected a function, but found: Number(1.0)".to_string()
+                "Expected a Lisp function or a native function, but found: Number(1.0)".to_string()
             ))
         );
     }
