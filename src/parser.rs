@@ -5,10 +5,10 @@ use nom::{
     branch::alt,                                     // For trying multiple parsers
     bytes::complete::tag,                            // For matching literal strings
     character::complete::{satisfy, multispace1},     // For character-level parsing & whitespace
-    combinator::{map, recognize},                    // For transforming and recognizing parser output
+    combinator::recognize,                           // For transforming and recognizing parser output (removed map)
     multi::{many0, separated_list0},                 // For repeating parsers
     number::complete::double,                        // For parsing f64 numbers
-    sequence::{delimited, pair},                      // For sequencing parsers
+    sequence::{delimited, pair, preceded},            // For sequencing parsers (added preceded)
     IResult,
     Parser, // Import the Parser trait to use its methods like .map() and .parse()
 };
