@@ -4,9 +4,9 @@ use nom::{
     // combinator::map, // Removed as Parser::map method is used
     branch::alt,                                     // For trying multiple parsers
     bytes::complete::tag,                            // For matching literal strings
-    character::complete::satisfy,                    // For character-level parsing (removed alphanumeric0)
+    character::complete::{satisfy, multispace1},     // For character-level parsing & whitespace
     combinator::{map, recognize},                    // For transforming and recognizing parser output
-    multi::many0,                                    // For repeating a parser zero or more times
+    multi::{many0, separated_list0},                 // For repeating parsers
     number::complete::double,                        // For parsing f64 numbers
     sequence::{delimited, pair},                      // For sequencing parsers
     IResult,
@@ -82,6 +82,28 @@ fn parse_symbol(input: &str) -> IResult<&str, Expr> {
     .parse(input)
 }
 
+// Parses a list of expressions, e.g., (a b c) or (+ 1 2)
+#[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
+fn parse_list(input: &str) -> IResult<&str, Expr> {
+    trace!("Attempting to parse list");
+    ws( // Handles whitespace around the entire list, e.g., "  (a b)  "
+        map(
+            delimited(
+                tag("("), // Matches the opening parenthesis
+                // `separated_list0` parses zero or more occurrences of `parse_expr`,
+                // separated by one or more whitespace characters.
+                separated_list0(
+                    multispace1, // The separator between elements
+                    parse_expr   // The parser for each element
+                ),
+                tag(")")  // Matches the closing parenthesis
+            ),
+            Expr::List // Converts the Vec<Expr> from separated_list0 into Expr::List
+        )
+    ).parse(input)
+}
+
+
 // Top-level parser function for a single expression
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
 pub fn parse_expr(input: &str) -> IResult<&str, Expr> {
@@ -91,8 +113,8 @@ pub fn parse_expr(input: &str) -> IResult<&str, Expr> {
         parse_true,
         parse_false,
         parse_nil,
+        parse_list,   // Try parsing a list before a general symbol
         parse_symbol,
-        // TODO: parse_list will be added here later
     ))
     .parse(input)
 }
@@ -314,5 +336,196 @@ mod tests {
         assert!(parse_expr(".").is_err(), "Single dot symbol should fail with current rules. Got: {:?}", parse_expr("."));
         assert!(parse_expr("..").is_err(), "Double dot symbol should fail with current rules. Got: {:?}", parse_expr(".."));
         assert!(parse_expr("...").is_err(), "Triple dot symbol should fail with current rules. Got: {:?}", parse_expr("..."));
+    }
+
+    // Tests for lists
+    #[test]
+    fn test_parse_empty_list() {
+        setup_tracing();
+        assert_eq!(parse_expr("()"), Ok(("", Expr::List(vec![]))));
+        assert_eq!(parse_expr(" ( ) "), Ok(("", Expr::List(vec![]))));
+    }
+
+    #[test]
+    fn test_parse_list_with_one_number() {
+        setup_tracing();
+        assert_eq!(parse_expr("(1)"), Ok(("", Expr::List(vec![Expr::Number(1.0)]))));
+        assert_eq!(parse_expr(" ( 1 ) "), Ok(("", Expr::List(vec![Expr::Number(1.0)]))));
+    }
+
+    #[test]
+    fn test_parse_list_with_multiple_numbers() {
+        setup_tracing();
+        assert_eq!(
+            parse_expr("(1 2 3)"),
+            Ok((
+                "",
+                Expr::List(vec![Expr::Number(1.0), Expr::Number(2.0), Expr::Number(3.0)])
+            ))
+        );
+        assert_eq!(
+            parse_expr(" (  1   2   3  ) "),
+            Ok((
+                "",
+                Expr::List(vec![Expr::Number(1.0), Expr::Number(2.0), Expr::Number(3.0)])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_list_with_symbols() {
+        setup_tracing();
+        assert_eq!(
+            parse_expr("(a b c)"),
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("a".to_string()),
+                    Expr::Symbol("b".to_string()),
+                    Expr::Symbol("c".to_string())
+                ])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_list_with_mixed_types() {
+        setup_tracing();
+        assert_eq!(
+            parse_expr("(+ 1 foo)"),
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("+".to_string()),
+                    Expr::Number(1.0),
+                    Expr::Symbol("foo".to_string())
+                ])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_nested_empty_list() {
+        setup_tracing();
+        assert_eq!(
+            parse_expr("(())"),
+            Ok(("", Expr::List(vec![Expr::List(vec![])])))
+        );
+        assert_eq!(
+            parse_expr("( ( ) )"), // With spaces
+            Ok(("", Expr::List(vec![Expr::List(vec![])])))
+        );
+    }
+
+    #[test]
+    fn test_parse_nested_list() {
+        setup_tracing();
+        assert_eq!(
+            parse_expr("(a (b) c)"),
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("a".to_string()),
+                    Expr::List(vec![Expr::Symbol("b".to_string())]),
+                    Expr::Symbol("c".to_string())
+                ])
+            ))
+        );
+    }
+    
+    #[test]
+    fn test_parse_deeply_nested_list() {
+        setup_tracing();
+        let input = "(a (b (c (d) e) f) g)";
+        let expected = Expr::List(vec![
+            Expr::Symbol("a".to_string()),
+            Expr::List(vec![
+                Expr::Symbol("b".to_string()),
+                Expr::List(vec![
+                    Expr::Symbol("c".to_string()),
+                    Expr::List(vec![Expr::Symbol("d".to_string())]),
+                    Expr::Symbol("e".to_string()),
+                ]),
+                Expr::Symbol("f".to_string()),
+            ]),
+            Expr::Symbol("g".to_string()),
+        ]);
+        assert_eq!(parse_expr(input), Ok(("", expected)));
+    }
+
+
+    #[test]
+    fn test_parse_list_leaves_remaining_input() {
+        setup_tracing();
+        assert_eq!(
+            parse_expr("(a b) c"),
+            Ok((
+                "c", // Note: ws around list consumes space after ')', so " c" becomes "c"
+                Expr::List(vec![
+                    Expr::Symbol("a".to_string()),
+                    Expr::Symbol("b".to_string())
+                ])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_list_unmatched_opening_paren() {
+        setup_tracing();
+        let result = parse_expr("(a b");
+        assert!(result.is_err(), "Should fail for unmatched opening parenthesis. Got: {:?}", result);
+    }
+    
+    #[test]
+    fn test_parse_list_unmatched_closing_paren() {
+        setup_tracing();
+        // This case is tricky. "a b)" might be parsed as symbol "a", leaving "b)"
+        // Or, if `parse_expr` is part of a larger structure expecting balanced forms,
+        // the error might be caught at a higher level.
+        // For `parse_expr` itself, it would parse `a` and leave `b)`.
+        // If we parse `(a b))`, it should parse `(a b)` and leave `)`.
+        let result = parse_expr("(a b))");
+         assert_eq!(
+            result,
+            Ok((
+                ")", 
+                Expr::List(vec![
+                    Expr::Symbol("a".to_string()),
+                    Expr::Symbol("b".to_string())
+                ])
+            ))
+        );
+
+        let result_just_paren = parse_expr(")");
+        assert!(result_just_paren.is_err(), "Should fail for stray closing parenthesis. Got: {:?}", result_just_paren);
+    }
+
+    #[test]
+    fn test_parse_list_no_space_between_elements() {
+        setup_tracing();
+        // "(ab)" should parse as a list containing one symbol "ab"
+        // because `multispace1` is the separator.
+        assert_eq!(
+            parse_expr("(ab)"),
+            Ok(("", Expr::List(vec![Expr::Symbol("ab".to_string())])))
+        );
+        // "(a b)" is fine
+        assert_eq!(
+            parse_expr("(a b)"),
+            Ok(("", Expr::List(vec![Expr::Symbol("a".to_string()), Expr::Symbol("b".to_string())])))
+        );
+        // "(1-2)" should be a list with one symbol "1-2" if symbols can start with numbers when followed by non-numbers
+        // Current symbol rule: initial_char cannot be a digit. So "1-2" is not a symbol.
+        // It's also not a number. So `parse_expr("1-2")` would fail.
+        // Thus `(1-2)` should fail to parse its element.
+        let result = parse_expr("(1-2)");
+        assert!(result.is_err(), "Parsing (1-2) should fail as 1-2 is not a valid expr. Got: {:?}", result);
+
+        // "(+1)" should be a list with one symbol "+1" if symbols can be like that.
+        // `+` is an initial_char, `1` is a subsequent_char. So `+1` is a symbol.
+         assert_eq!(
+            parse_expr("(+1)"),
+            Ok(("", Expr::List(vec![Expr::Symbol("+1".to_string())])))
+        );
     }
 }
