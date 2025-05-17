@@ -75,7 +75,9 @@ mod tests {
     fn get_from_outer_env() {
         setup_tracing();
         let outer_env = Environment::new();
-        outer_env.borrow_mut().define("x".to_string(), Expr::Number(10.0));
+        outer_env
+            .borrow_mut()
+            .define("x".to_string(), Expr::Number(10.0));
 
         let inner_env = Environment::new_enclosed(outer_env.clone());
         assert_eq!(inner_env.borrow().get("x"), Some(Expr::Number(10.0)));
@@ -85,10 +87,14 @@ mod tests {
     fn define_in_inner_shadows_outer() {
         setup_tracing();
         let outer_env = Environment::new();
-        outer_env.borrow_mut().define("x".to_string(), Expr::Number(10.0));
+        outer_env
+            .borrow_mut()
+            .define("x".to_string(), Expr::Number(10.0));
 
         let inner_env = Environment::new_enclosed(outer_env.clone());
-        inner_env.borrow_mut().define("x".to_string(), Expr::Number(20.0)); // Shadow
+        inner_env
+            .borrow_mut()
+            .define("x".to_string(), Expr::Number(20.0)); // Shadow
 
         assert_eq!(inner_env.borrow().get("x"), Some(Expr::Number(20.0)));
         // Ensure outer environment is not affected

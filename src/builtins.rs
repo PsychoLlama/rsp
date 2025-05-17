@@ -51,11 +51,9 @@ pub fn eval_let(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Li
 
 #[cfg(test)]
 mod tests {
-    use super::*; // Imports eval_let
-    use super::*; // Imports eval_let
     use crate::ast::Expr;
     use crate::env::Environment;
-    use crate::eval::{eval, LispError}; // Need main eval for testing integration
+    use crate::eval::{LispError, eval}; // Need main eval for testing integration
     use crate::test_utils::setup_tracing; // Use shared setup_tracing
     use std::rc::Rc; // For Environment
 
