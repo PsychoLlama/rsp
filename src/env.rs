@@ -1,4 +1,5 @@
-use crate::ast::Expr;
+use crate::ast::{Expr, NativeFunction}; // Added NativeFunction
+use crate::builtins::{native_add, native_equals}; // Added native functions
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -11,13 +12,35 @@ pub struct Environment {
 }
 
 impl Environment {
-    /// Creates a new, empty root environment.
-    pub fn new() -> Rc<RefCell<Self>> {
-        debug!("Creating new root environment");
-        Rc::new(RefCell::new(Environment {
+    /// Creates a new, empty root environment and populates it with prelude functions.
+    pub fn new_with_prelude() -> Rc<RefCell<Self>> {
+        debug!("Creating new root environment with prelude");
+        let env_rc = Rc::new(RefCell::new(Environment {
             bindings: HashMap::new(),
             outer: None,
-        }))
+        }));
+
+        // Add prelude functions
+        {
+            let mut env_borrowed = env_rc.borrow_mut();
+            env_borrowed.define(
+                "+".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "+".to_string(),
+                    func: native_add,
+                }),
+            );
+            env_borrowed.define(
+                "=".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "=".to_string(),
+                    func: native_equals,
+                }),
+            );
+            // Add other prelude functions here as they are implemented
+        }
+        trace!(env = ?env_rc.borrow(), "Environment after adding prelude");
+        env_rc
     }
 
     /// Creates a new environment that is enclosed by an outer environment.

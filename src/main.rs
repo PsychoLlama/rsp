@@ -16,8 +16,7 @@ use tracing::info;
 use crate::parser::parse_expr;
 use crate::eval::eval;
 use crate::env::Environment;
-use std::cell::RefCell; // For Rc<RefCell<Environment>>
-use std::rc::Rc;       // For Rc<RefCell<Environment>>
+// Rc and RefCell are not directly used here anymore as Environment::new_with_prelude handles it.
 
 
 /// A simple Lisp interpreter written in Rust.
@@ -56,7 +55,7 @@ fn main() -> Result<()> {
                     eprintln!("Error: Unexpected input found after expression: '{}'", remaining_input);
                 } else {
                     info!(parsed_ast = ?ast, "Successfully parsed expression");
-                    let root_env = Environment::new();
+                    let root_env = Environment::new_with_prelude();
                     match eval(&ast, root_env) {
                         Ok(result) => {
                             info!(evaluation_result = ?result, "Evaluation successful");
