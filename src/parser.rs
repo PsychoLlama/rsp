@@ -5,6 +5,7 @@ use nom::{
     number::complete::double,                        // For parsing f64 numbers
     sequence::delimited,                             // For parsers surrounded by other parsers
     IResult,
+    Parser, // Import the Parser trait to use its methods like .map() and .parse()
     // Add other nom components as needed, e.g., character, sequence, branch, multi
 };
 use tracing::trace; // For logging parser activity
