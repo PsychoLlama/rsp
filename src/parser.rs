@@ -173,7 +173,8 @@ mod tests {
     fn test_parse_not_a_number() {
         setup_tracing();
         let result = parse_expr("abc");
-        assert!(result.is_err(), "Should fail to parse 'abc' as a number. Got: {:?}", result);
+        // "abc" is not a number, bool, or nil, so it should be parsed as a symbol.
+        assert_eq!(result, Ok(("", Expr::Symbol("abc".to_string()))), "Should parse 'abc' as a symbol. Got: {:?}", result);
     }
 
     #[test]
@@ -309,8 +310,9 @@ mod tests {
         // So ".." would fail because first '.' is not an initial_char.
         // If initial_char allowed '.', then ".." would be `initial='.'`, `subsequent=['.']`.
         setup_tracing();
-        assert!(parse_expr(".").is_ok(), "Single dot symbol should parse"); // `.` is a valid symbol
-        assert!(parse_expr("..").is_err(), "Double dot symbol should fail with current rules");
-        assert!(parse_expr("...").is_err(), "Triple dot symbol should fail with current rules");
+        // A single dot '.' is not a valid symbol by current rules (not in initial_char set).
+        assert!(parse_expr(".").is_err(), "Single dot symbol should fail with current rules. Got: {:?}", parse_expr("."));
+        assert!(parse_expr("..").is_err(), "Double dot symbol should fail with current rules. Got: {:?}", parse_expr(".."));
+        assert!(parse_expr("...").is_err(), "Triple dot symbol should fail with current rules. Got: {:?}", parse_expr("..."));
     }
 }
