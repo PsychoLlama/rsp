@@ -16,8 +16,8 @@ use tracing::info;
 use crate::parser::parse_expr;
 use crate::eval::eval;
 use crate::env::Environment;
-// Rc and RefCell are not directly used here anymore as Environment::new_with_prelude handles it.
-
+use std::fs; // For file reading
+use std::rc::Rc; // For Rc::clone on environment
 
 /// A simple Lisp interpreter written in Rust.
 #[derive(Parser, Debug)]
@@ -25,12 +25,13 @@ use crate::env::Environment;
 #[clap(name = "rust-lisp-interpreter", bin_name = "rust-lisp-interpreter")]
 struct Cli {
     /// Lisp expression string to evaluate.
-    /// Parsing this string into an AST is not yet implemented.
-    #[clap(short, long)]
+    #[clap(short, long, group = "input_source")]
     expression: Option<String>,
-    // Consider adding a flag for REPL mode in the future:
-    // #[clap(short, long, action)]
-    // repl: bool,
+
+    /// Path to a Lisp file to execute.
+    #[clap(short, long, group = "input_source")]
+    file: Option<String>,
+    // input_source group makes --expression and --file mutually exclusive
 }
 
 #[tracing::instrument]
@@ -47,7 +48,67 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     info!(?cli, "Parsed CLI arguments");
 
-    if let Some(expr_str) = cli.expression {
+    if let Some(file_path) = cli.file {
+        info!(file_path = %file_path, "Received file path for execution");
+        match fs::read_to_string(&file_path) {
+            Ok(content) => {
+                let root_env = Environment::new_with_prelude();
+                let mut last_eval_result: Option<crate::ast::Expr> = None;
+                let mut current_input: &str = &content;
+
+                loop {
+                    current_input = current_input.trim_start();
+                    if current_input.is_empty() {
+                        break; // All content processed
+                    }
+
+                    match parse_expr(current_input) {
+                        Ok((remaining, ast)) => {
+                            info!(parsed_ast = ?ast, "Successfully parsed expression from file");
+                            match eval(&ast, Rc::clone(&root_env)) {
+                                Ok(result) => {
+                                    last_eval_result = Some(result);
+                                }
+                                Err(e) => {
+                                    info!(evaluation_error = %e, "Evaluation error from file expression");
+                                    eprintln!("Evaluation Error in file '{}': {}", file_path, e);
+                                    return Ok(()); // Stop on first evaluation error
+                                }
+                            }
+                            current_input = remaining;
+                        }
+                        Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
+                            // If it's an error and there was still input, it's a real parse error
+                            if !current_input.is_empty() {
+                                 let err_msg = format!("Parsing Error in file '{}': {:?}", file_path, e);
+                                 info!(parsing_error = %err_msg, "Parsing failed in file");
+                                 eprintln!("{}", err_msg);
+                                 return Ok(()); // Stop on first parsing error
+                            }
+                            // If current_input was empty, this error might be due to trying to parse empty string,
+                            // which is fine if we're at the end of content. The loop condition handles this.
+                            break;
+                        }
+                        Err(nom::Err::Incomplete(_)) => {
+                            eprintln!("Parsing incomplete in file '{}': More input needed.", file_path);
+                            return Ok(()); // Stop on incomplete parse
+                        }
+                    }
+                }
+
+                if let Some(result) = last_eval_result {
+                    info!(final_evaluation_result = ?result, "Final evaluation result from file");
+                    println!("{:?}", result);
+                } else {
+                    info!("No expressions evaluated from file or file was empty.");
+                }
+            }
+            Err(e) => {
+                info!(file_read_error = %e, "Failed to read file");
+                eprintln!("Error reading file '{}': {}", file_path, e);
+            }
+        }
+    } else if let Some(expr_str) = cli.expression {
         info!(expression = %expr_str, "Received expression string for parsing and evaluation");
         match parse_expr(&expr_str) {
             Ok((remaining_input, ast)) => {
@@ -73,8 +134,6 @@ fn main() -> Result<()> {
                 let err_msg = match e {
                     nom::Err::Incomplete(_) => "Parsing incomplete: More input needed.".to_string(),
                     nom::Err::Error(e) | nom::Err::Failure(e) => {
-                        // e is nom::error::Error<I> or nom::error::VerboseError<I>
-                        // For simplicity, just format it. You might want more detailed error reporting.
                         format!("Parsing Error: {:?}", e)
                     }
                 };
@@ -83,9 +142,8 @@ fn main() -> Result<()> {
             }
         }
     } else {
-        info!("No expression provided via CLI");
-        // No expression provided via CLI.
-        println!("No expression provided. Use --expression <EXPR> or try --help.");
+        info!("No expression or file provided via CLI");
+        println!("No expression or file provided. Use --expression <EXPR>, --file <PATH>, or try --help.");
         println!("Run 'cargo test' to see current evaluation capabilities.");
     }
 
