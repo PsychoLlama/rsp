@@ -1,6 +1,6 @@
 use crate::repl::highlighter::ReplHelper; // Import the new helper
-use rustyline::history::DefaultHistory;
 use rustyline::Editor;
+use rustyline::history::DefaultHistory;
 use std::fs;
 use std::path::PathBuf;
 use tracing::{error, info, warn};

@@ -31,7 +31,7 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
         _ => {
             let msg = format!(
                 "'require' argument must evaluate to a string or symbol, found {:?}",
-                evaluated_arg 
+                evaluated_arg
             );
             error!("{}", msg);
             return Err(LispError::TypeError {
@@ -60,7 +60,7 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
     if !relative_path_str.ends_with(".lisp") {
         relative_path_str.push_str(".lisp");
     }
-    
+
     let path_to_check = PathBuf::from(&relative_path_str);
     let absolute_path = if path_to_check.is_absolute() {
         path_to_check
@@ -186,6 +186,7 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MODULE_CACHE;
     use crate::engine::ast::Expr;
     use crate::engine::env::Environment;
     use crate::engine::eval::LispError; // main_eval is used from parent, eval is for general expr eval
@@ -194,15 +195,14 @@ mod tests {
     use std::io::Write;
     use std::path::PathBuf;
     use std::rc::Rc;
-    use tempfile::tempdir; // For creating temporary directories for file-based module tests
-    use crate::MODULE_CACHE; // To clear cache for specific test scenarios if needed
+    use tempfile::tempdir; // For creating temporary directories for file-based module tests // To clear cache for specific test scenarios if needed
 
     // Helper to parse and evaluate a Lisp expression string containing `require`.
     // This uses `main_eval` because `require` is a special form handled by it.
     fn run_require_expr(lisp_code: &str, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
         let (remaining, parsed_expr_option) = parser::parse_expr(lisp_code)
             .map_err(|e| LispError::Evaluation(format!("Test parse error: {}", e)))?;
-        
+
         if !remaining.is_empty() {
             return Err(LispError::Evaluation(format!(
                 "Unexpected remaining input in test: '{}'", // Added quotes for clarity
@@ -276,7 +276,6 @@ mod tests {
 
         // std::env::set_current_dir(original_dir).unwrap();
 
-
         match result {
             Ok(Expr::Module(module)) => {
                 assert_eq!(module.path, canonical_file_path);
@@ -289,7 +288,7 @@ mod tests {
         }
         // tempdir is cleaned up when `dir` goes out of scope
     }
-    
+
     #[test]
     fn test_require_filesystem_module_explicit_extension() {
         init_test_logging();
@@ -302,7 +301,7 @@ mod tests {
 
         // let original_dir = std::env::current_dir().unwrap();
         // std::env::set_current_dir(dir.path()).unwrap();
-        
+
         let canonical_file_path = fs::canonicalize(&file_path).unwrap();
         MODULE_CACHE.with(|mc| mc.borrow_mut().remove(&canonical_file_path));
 
@@ -310,21 +309,17 @@ mod tests {
         // The module name itself (another_module.lisp) will be extracted by eval_require
         let require_expr_str = format!("(require \"{}\")", file_path.to_str().unwrap());
         let result = run_require_expr(&require_expr_str, Rc::clone(&env));
-        
+
         // std::env::set_current_dir(original_dir).unwrap();
 
         match result {
             Ok(Expr::Module(module)) => {
                 assert_eq!(module.path, canonical_file_path);
-                assert_eq!(
-                    module.env.borrow().get("val"),
-                    Some(Expr::Number(789.0))
-                );
+                assert_eq!(module.env.borrow().get("val"), Some(Expr::Number(789.0)));
             }
             _ => panic!("Expected LispModule with explicit .lisp, got {:?}", result),
         }
     }
-
 
     #[test]
     fn test_require_module_not_found_on_filesystem() {
@@ -333,10 +328,10 @@ mod tests {
         let dir = tempdir().unwrap();
         // Construct an absolute path to a non-existent file within the temp directory
         let non_existent_path_str = dir.path().join("non_existent_fs_module.lisp");
-        
+
         let require_expr_str = format!("(require \"{}\")", non_existent_path_str.to_str().unwrap());
         let result = run_require_expr(&require_expr_str, Rc::clone(&env));
-        
+
         match result {
             Err(LispError::ModuleNotFound(path)) => {
                 // The path in the error should be the absolute path we tried to load
@@ -365,7 +360,7 @@ mod tests {
 
         let require_expr_str = format!("(require \"{}\")", file_path.to_str().unwrap());
         let result = run_require_expr(&require_expr_str, Rc::clone(&env));
-        
+
         // std::env::set_current_dir(original_dir).unwrap();
 
         match result {
@@ -373,7 +368,10 @@ mod tests {
                 assert_eq!(path, canonical_file_path);
                 assert!(matches!(*source, LispError::TypeError { .. }));
             }
-            _ => panic!("Expected ModuleLoadError with TypeError source, got {:?}", result),
+            _ => panic!(
+                "Expected ModuleLoadError with TypeError source, got {:?}",
+                result
+            ),
         }
     }
 }

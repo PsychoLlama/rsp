@@ -703,14 +703,16 @@ mod tests {
             Expr::Symbol("s".to_string()),
             Expr::List(vec![
                 Expr::Symbol("require".to_string()),
-                Expr::List(vec![ // 'string
+                Expr::List(vec![
+                    // 'string
                     Expr::Symbol("quote".to_string()),
                     Expr::Symbol("string".to_string()),
                 ]),
             ]),
         ]);
-        eval(&let_s_expr, Rc::clone(&env)).expect("Failed to let-bind s to string module via require");
-        
+        eval(&let_s_expr, Rc::clone(&env))
+            .expect("Failed to let-bind s to string module via require");
+
         // (s/concat "hello" " " "world")
         let call_s_concat_expr = Expr::List(vec![
             Expr::Symbol("s/concat".to_string()),
@@ -718,7 +720,10 @@ mod tests {
             Expr::String(" ".to_string()),
             Expr::String("world".to_string()),
         ]);
-        assert_eq!(eval(&call_s_concat_expr, Rc::clone(&env)), Ok(Expr::String("hello world".to_string())));
+        assert_eq!(
+            eval(&call_s_concat_expr, Rc::clone(&env)),
+            Ok(Expr::String("hello world".to_string()))
+        );
     }
 
     #[test]
@@ -735,10 +740,8 @@ mod tests {
         eval(&let_expr, Rc::clone(&env)).expect("Failed to let-bind my-var");
 
         // (my-var/foo)
-        let call_expr = Expr::List(vec![
-            Expr::Symbol("my-var/foo".to_string()),
-        ]);
-        
+        let call_expr = Expr::List(vec![Expr::Symbol("my-var/foo".to_string())]);
+
         // This should fail because 'my-var' is a number, not a module.
         // The specific error depends on the resolution path.
         // If 'my-var' is evaluated first, it's not a module.

@@ -1,18 +1,18 @@
 use crate::engine::env::Environment;
+use rustyline::Editor;
 use rustyline::error::ReadlineError;
 use rustyline::history::DefaultHistory;
-use rustyline::Editor;
 use std::cell::RefCell;
 use std::rc::Rc;
 use tracing::{info, warn};
 
-mod history;
-mod highlighter; // Declare the new highlighter module
+mod highlighter;
+mod history; // Declare the new highlighter module
 
 #[tracing::instrument(skip(env))]
 pub fn start_repl(env: Rc<RefCell<Environment>>) -> anyhow::Result<()> {
     info!("Starting REPL session with rustyline and syntax highlighting");
-    
+
     // Editor::new() will use ReplHelper::default() due to trait bounds.
     // The `let helper = ...` line was unused.
     let mut rl = Editor::<highlighter::ReplHelper, DefaultHistory>::new()?;

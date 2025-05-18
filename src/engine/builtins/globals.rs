@@ -1,8 +1,7 @@
 use crate::engine::ast::{Expr, NativeFunction};
 use crate::engine::builtins::log::create_log_module;
 use crate::engine::builtins::math::{
-    create_math_module, native_add, native_divide, native_equals, native_multiply,
-    native_subtract,
+    create_math_module, native_add, native_divide, native_equals, native_multiply, native_subtract,
 };
 use crate::engine::builtins::string::create_string_module;
 use crate::engine::env::Environment;

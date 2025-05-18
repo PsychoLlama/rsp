@@ -77,9 +77,8 @@ pub fn native_multiply(args: Vec<Expr>) -> Result<Expr, LispError> {
 pub fn native_subtract(args: Vec<Expr>) -> Result<Expr, LispError> {
     trace!("Executing native '-' function");
     if args.is_empty() {
-        let arity_error = LispError::ArityMismatch(
-            "Native '-' expects at least 1 argument, got 0".to_string(),
-        );
+        let arity_error =
+            LispError::ArityMismatch("Native '-' expects at least 1 argument, got 0".to_string());
         error!(error = %arity_error, "Arity error in native '-'");
         return Err(arity_error);
     }
@@ -103,9 +102,8 @@ pub fn native_subtract(args: Vec<Expr>) -> Result<Expr, LispError> {
 pub fn native_divide(args: Vec<Expr>) -> Result<Expr, LispError> {
     trace!("Executing native '/' function");
     if args.is_empty() {
-        let arity_error = LispError::ArityMismatch(
-            "Native '/' expects at least 1 argument, got 0".to_string(),
-        );
+        let arity_error =
+            LispError::ArityMismatch("Native '/' expects at least 1 argument, got 0".to_string());
         error!(error = %arity_error, "Arity error in native '/'");
         return Err(arity_error);
     }
@@ -115,7 +113,9 @@ pub fn native_divide(args: Vec<Expr>) -> Result<Expr, LispError> {
     if args.len() == 1 {
         // Reciprocal: (/ x)
         if first_val == 0.0 {
-            let div_zero_error = LispError::DivisionByZero("Division by zero in native '/' (reciprocal of 0)".to_string());
+            let div_zero_error = LispError::DivisionByZero(
+                "Division by zero in native '/' (reciprocal of 0)".to_string(),
+            );
             error!(error = %div_zero_error, "Division by zero error in native '/'");
             return Err(div_zero_error);
         }

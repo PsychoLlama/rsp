@@ -1,18 +1,18 @@
 use lazy_static::lazy_static;
 use regex::Regex;
-use rustyline::highlight::Highlighter; // Removed MatchingBracketHighlighter
 use rustyline::completion::Completer; // Simplified import
+use rustyline::highlight::Highlighter; // Removed MatchingBracketHighlighter
 use rustyline::hint::Hinter;
 // History trait is not directly used by ReplHelper, but by Editor.
-// use rustyline::history::History; 
-use rustyline::validate::Validator; // Needed for manual Helper impl
+// use rustyline::history::History;
 use rustyline::Context; // Needed for manual Completer/Hinter impl
-use rustyline::error::ReadlineError; // Needed for manual Completer/Validator impl
+use rustyline::error::ReadlineError;
+use rustyline::validate::Validator; // Needed for manual Helper impl // Needed for manual Completer/Validator impl
 
 // Removed unused: use rustyline_derive::Helper as RustylineHelperMacro;
-use std::borrow::Cow::{self, Owned};
 use owo_colors::{OwoColorize, Style as OwoStyle}; // For ANSI styling
-use rustyline::Helper as RustylineHelperTrait; // Helper trait is at the root
+use rustyline::Helper as RustylineHelperTrait;
+use std::borrow::Cow::{self, Owned}; // Helper trait is at the root
 
 lazy_static! {
     // Order matters for matching. More specific regexes should come first if ambiguity exists.
@@ -75,7 +75,7 @@ impl Highlighter for LispHighlighter {
                     if mat.start() == current_pos {
                         // Append part before match (should be empty if current_pos is at mat.start())
                         // highlighted_line.push_str(&line[current_pos..mat.start()]);
-                        
+
                         let matched_text = &line[mat.start()..mat.end()];
                         if let Some(style) = style_opt {
                             highlighted_line.push_str(&matched_text.style(*style).to_string());
@@ -111,11 +111,10 @@ impl Highlighter for LispHighlighter {
     }
 }
 
-
 // We will manually implement Helper and its supertraits.
 // The derive macro can be removed if we provide all implementations.
 // For now, let's remove it and implement manually.
-// #[derive(RustylineHelperMacro)] 
+// #[derive(RustylineHelperMacro)]
 pub struct ReplHelper {
     highlighter: LispHighlighter,
     // We could add fields for custom completer, hinter, validator if needed
@@ -151,7 +150,8 @@ impl Hinter for ReplHelper {
 }
 
 impl Highlighter for ReplHelper {
-    fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> { // Return type changed
+    fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> {
+        // Return type changed
         self.highlighter.highlight(line, pos)
     }
 
@@ -214,7 +214,6 @@ impl Validator for ReplHelper {
 // This explicitly states that ReplHelper implements the RustylineHelperTrait marker trait.
 // The supertraits (Completer, Hinter, Highlighter, Validator) must be implemented.
 impl RustylineHelperTrait for ReplHelper {}
-
 
 impl Default for ReplHelper {
     fn default() -> Self {

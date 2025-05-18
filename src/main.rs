@@ -40,7 +40,8 @@ thread_local! {
 ///     Ok((Option<Expr>, bool)): The last evaluated expression and a flag indicating if any expressions were evaluated.
 ///     Err(String): An error message if parsing or evaluation fails.
 #[tracing::instrument(skip(source_content, env), fields(source_name = %source_name))]
-pub(crate) fn evaluate_source( // Made pub(crate) to be accessible by the repl module
+pub(crate) fn evaluate_source(
+    // Made pub(crate) to be accessible by the repl module
     source_content: &str,
     env: Rc<RefCell<Environment>>,
     source_name: &str,
@@ -80,7 +81,10 @@ pub(crate) fn evaluate_source( // Made pub(crate) to be accessible by the repl m
                     // `remaining` should be the input *after* the initial `space_or_comment0`.
                     // If `ast_option` is None, it means the `opt(...)` part returned None.
                     // This is the correct behavior for comment-only or empty lines after initial whitespace.
-                    if remaining.is_empty() && current_input.trim().is_empty() && !expressions_evaluated {
+                    if remaining.is_empty()
+                        && current_input.trim().is_empty()
+                        && !expressions_evaluated
+                    {
                         // Input was effectively empty (or only comments/whitespace) from the start.
                         // No actual error, just nothing to do.
                     }
@@ -90,27 +94,31 @@ pub(crate) fn evaluate_source( // Made pub(crate) to be accessible by the repl m
                 }
                 current_input = remaining;
             }
-            Err(e) => { // This is a hard parsing error from nom
+            Err(e) => {
+                // This is a hard parsing error from nom
                 match e {
                     nom::Err::Incomplete(_) => {
-                        let err_msg = format!("Parsing incomplete in {}: More input needed.", source_name);
+                        let err_msg =
+                            format!("Parsing incomplete in {}: More input needed.", source_name);
                         info!(parsing_error = %err_msg, input_at_error = %current_input, "Parsing failed in {}", source_name);
                         return Err(err_msg);
                     }
-                    nom::Err::Error(ref inner_e) => { // Use ref inner_e to avoid moving
+                    nom::Err::Error(ref inner_e) => {
+                        // Use ref inner_e to avoid moving
                         // If we have already parsed some expressions and the rest is empty or whitespace,
                         // it's not an error. This check is tricky with the new Option<Expr>.
                         // The `opt` in parse_expr should handle cases where the remaining input is just whitespace.
                         // An error here means `expr_recursive_impl` failed on non-empty, non-comment input.
                         if expressions_evaluated && current_input.trim().is_empty() {
-                             // This case might be less relevant now as parse_expr(whitespace) -> Ok(("", None))
-                            break; 
+                            // This case might be less relevant now as parse_expr(whitespace) -> Ok(("", None))
+                            break;
                         }
                         let err_msg = format!("Parsing Error in {}: {:?}", source_name, inner_e);
                         info!(parsing_error = %err_msg, input_at_error = %current_input, "Parsing failed in {}", source_name);
                         return Err(err_msg);
                     }
-                    nom::Err::Failure(ref inner_e) => { // Use ref inner_e
+                    nom::Err::Failure(ref inner_e) => {
+                        // Use ref inner_e
                         let err_msg = format!("Parsing Error in {}: {:?}", source_name, inner_e);
                         info!(parsing_error = %err_msg, input_at_error = %current_input, "Parsing failed critically in {}", source_name);
                         return Err(err_msg);
@@ -162,11 +170,12 @@ fn main() -> Result<()> {
                         match evaluate_source(&content, Rc::clone(&file_env), &file_path_str) {
                             Ok((_last_result, expressions_evaluated)) => {
                                 // After evaluating all expressions, construct and print the module.
-                                let module_expr =
-                                    crate::engine::ast::Expr::Module(crate::engine::ast::LispModule {
+                                let module_expr = crate::engine::ast::Expr::Module(
+                                    crate::engine::ast::LispModule {
                                         path: file_path.clone(), // Use the PathBuf directly
                                         env: file_env,
-                                    });
+                                    },
+                                );
 
                                 if !expressions_evaluated && content.trim().is_empty() {
                                     info!(file_path = %file_path_str, "File is empty, resulting in an empty module environment.");
