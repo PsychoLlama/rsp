@@ -1,6 +1,6 @@
 # rsp - Rust S-expression Processor
 
-`rsp` is a Lisp-like interpreter written in Rust, 100% vibe coded by Gemini 2.5. It's a journey into AI-assisted programming language creation.
+`rsp` is a Lisp-like interpreter written in Rust. It's 100% vibe coded by Gemini 2.5 as an exercise to gain experience with the model in the context of AI-assisted programming language creation.
 
 ## Features
 
