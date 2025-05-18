@@ -1,7 +1,14 @@
 //! Defines special forms (keywords) for the Lisp interpreter.
 
+// Constants for individual special form names, can be used for matching.
+pub const LET: &str = "let";
+pub const QUOTE: &str = "quote";
+pub const FN: &str = "fn";
+pub const IF: &str = "if";
+pub const REQUIRE: &str = "require";
+
 /// Array of special form names. These are reserved and cannot be used as variable names in `let`.
-pub const SPECIAL_FORMS: &[&str] = &["let", "quote", "fn", "if", "require"];
+pub const SPECIAL_FORMS: &[&str] = &[LET, QUOTE, FN, IF, REQUIRE];
 
 /// Checks if a given name is a special form.
 ///
@@ -13,13 +20,6 @@ pub const SPECIAL_FORMS: &[&str] = &["let", "quote", "fn", "if", "require"];
 pub fn is_special_form(name: &str) -> bool {
     SPECIAL_FORMS.contains(&name)
 }
-
-// Constants for individual special form names, can be used for matching.
-pub const LET: &str = "let";
-pub const QUOTE: &str = "quote";
-pub const FN: &str = "fn";
-pub const IF: &str = "if";
-pub const REQUIRE: &str = "require";
 
 #[cfg(test)]
 mod tests {
