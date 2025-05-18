@@ -1,9 +1,10 @@
 use crate::engine::ast::{Expr, NativeFunction};
 use crate::engine::builtins::log::create_log_module;
 use crate::engine::builtins::math::{
-    create_math_module, native_add, native_equals, native_multiply,
+    create_math_module, native_add, native_divide, native_equals, native_multiply,
+    native_subtract,
 };
-use crate::engine::builtins::string::create_string_module; // Added import
+use crate::engine::builtins::string::create_string_module;
 use crate::engine::env::Environment;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -45,6 +46,20 @@ pub fn populate_globals(env: Rc<RefCell<Environment>>) {
         Expr::NativeFunction(NativeFunction {
             name: "*".to_string(),
             func: native_multiply,
+        }),
+    );
+    root_env_borrowed.define(
+        "-".to_string(),
+        Expr::NativeFunction(NativeFunction {
+            name: "-".to_string(),
+            func: native_subtract,
+        }),
+    );
+    root_env_borrowed.define(
+        "/".to_string(),
+        Expr::NativeFunction(NativeFunction {
+            name: "/".to_string(),
+            func: native_divide,
         }),
     );
 }
