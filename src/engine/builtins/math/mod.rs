@@ -1,10 +1,8 @@
 use crate::engine::ast::{Expr, LispModule, NativeFunction};
 use crate::engine::env::Environment;
 use crate::engine::eval::LispError;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::rc::Rc;
 use tracing::{error, trace};
 
 // Helper function, not public
