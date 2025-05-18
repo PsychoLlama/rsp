@@ -22,7 +22,7 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
     }
 
     let path_specifier_expr = &args[0];
-    let mut relative_path_str = match path_specifier_expr {
+    let module_name_key = match path_specifier_expr {
         Expr::String(s) => s.clone(),
         Expr::Symbol(s) => s.clone(),
         _ => {
@@ -38,6 +38,22 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
         }
     };
 
+    // Attempt to load from environment (for built-in modules primarily)
+    // This allows `(require 'math)` to find the built-in math module.
+    if let Some(expr) = _env.borrow().get(&module_name_key) {
+        if let Expr::Module(_) = &expr {
+            trace!(module_name = %module_name_key, "Found module in environment (likely built-in), returning it.");
+            return Ok(expr.clone());
+        }
+        // If a symbol with the same name exists but is not a module, fall through to filesystem loading.
+        // This allows a file like `mymodule.lisp` to be loaded even if a non-module symbol `mymodule` exists.
+        trace!(module_name = %module_name_key, value_lisp_str = %expr.to_lisp_string(), "Found symbol in environment but it's not a module, proceeding to filesystem load attempt.");
+    }
+
+    // Filesystem loading logic (original logic, now a fallback)
+    let mut relative_path_str = module_name_key.clone(); // Use the extracted key for path construction
+
+    // Append .lisp if not already present (original logic)
     if !relative_path_str.ends_with(".lisp") {
         relative_path_str.push_str(".lisp");
     }
@@ -158,17 +174,178 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
 
 #[cfg(test)]
 mod tests {
-    // No tests were present for eval_require in the original mod.rs.
-    // If tests are added, they would go here.
-    // For example, one might need:
-    // use super::eval_require;
-    // use crate::engine::ast::Expr;
-    // use crate::engine::env::Environment;
-    // use crate::engine::eval::{eval, LispError};
-    // use crate::logging::init_test_logging;
-    // use std::rc::Rc;
-    // use std::fs;
-    // use std::path::PathBuf;
-    // use tempfile::NamedTempFile;
-    // use crate::MODULE_CACHE;
+    use super::*;
+    use crate::engine::ast::Expr;
+    use crate::engine::env::Environment;
+    use crate::engine::eval::LispError; // main_eval is used from parent, eval is for general expr eval
+    use crate::logging::init_test_logging;
+    use std::fs::{self, File};
+    use std::io::Write;
+    use std::path::PathBuf;
+    use std::rc::Rc;
+    use tempfile::tempdir; // For creating temporary directories for file-based module tests
+    use crate::MODULE_CACHE; // To clear cache for specific test scenarios if needed
+
+    // Helper to parse and evaluate a Lisp expression string containing `require`.
+    // This uses `main_eval` because `require` is a special form handled by it.
+    fn run_require_expr(lisp_code: &str, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
+        let (remaining, parsed_expr) = parser::parse_expr(lisp_code)
+            .map_err(|e| LispError::Evaluation(format!("Test parse error: {}", e)))?;
+        if !remaining.is_empty() {
+            return Err(LispError::Evaluation(format!(
+                "Unexpected remaining input in test: {}",
+                remaining
+            )));
+        }
+        main_eval(&parsed_expr, env) // Use main_eval from crate::engine::eval
+    }
+
+    #[test]
+    fn test_require_builtin_math_module_as_symbol() {
+        init_test_logging();
+        let env = Environment::new_with_prelude(); // Prelude contains built-in modules
+        let result = run_require_expr("(require 'math)", Rc::clone(&env));
+        match result {
+            Ok(Expr::Module(module)) => {
+                assert_eq!(module.path, PathBuf::from("builtin:math"));
+                // Check if a known math function is in the module's env
+                assert!(module.env.borrow().get("+").is_some());
+            }
+            _ => panic!("Expected LispModule for 'math', got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_require_builtin_string_module_as_string_literal() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        let result = run_require_expr("(require \"string\")", Rc::clone(&env));
+        match result {
+            Ok(Expr::Module(module)) => {
+                assert_eq!(module.path, PathBuf::from("builtin:string"));
+                assert!(module.env.borrow().get("concat").is_some());
+            }
+            _ => panic!("Expected LispModule for \"string\", got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_require_filesystem_module_simple_name() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        let dir = tempdir().unwrap(); // Create a temp directory
+
+        // Create a dummy module file in the temp directory
+        let file_path = dir.path().join("my_fs_module.lisp");
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "(let in-module 123)").unwrap();
+        drop(file); // Ensure file is closed and written
+
+        // Temporarily change current directory for the scope of this test
+        // so that `(require 'my_fs_module)` resolves correctly.
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let canonical_file_path = fs::canonicalize(&file_path).unwrap();
+        MODULE_CACHE.with(|mc| mc.borrow_mut().remove(&canonical_file_path));
+
+
+        let result = run_require_expr("(require 'my_fs_module)", Rc::clone(&env));
+
+        // Restore original directory
+        std::env::set_current_dir(original_dir).unwrap();
+
+
+        match result {
+            Ok(Expr::Module(module)) => {
+                assert_eq!(module.path, canonical_file_path);
+                assert_eq!(
+                    module.env.borrow().get("in-module"),
+                    Some(Expr::Number(123.0))
+                );
+            }
+            _ => panic!("Expected LispModule from filesystem, got {:?}", result),
+        }
+        // tempdir is cleaned up when `dir` goes out of scope
+    }
+    
+    #[test]
+    fn test_require_filesystem_module_explicit_extension() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("another_module.lisp");
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "(let val 789)").unwrap();
+        drop(file);
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+        
+        let canonical_file_path = fs::canonicalize(&file_path).unwrap();
+        MODULE_CACHE.with(|mc| mc.borrow_mut().remove(&canonical_file_path));
+
+        // Require with ".lisp" already in the name
+        let result = run_require_expr("(require 'another_module.lisp)", Rc::clone(&env));
+        
+        std::env::set_current_dir(original_dir).unwrap();
+
+        match result {
+            Ok(Expr::Module(module)) => {
+                assert_eq!(module.path, canonical_file_path);
+                assert_eq!(
+                    module.env.borrow().get("val"),
+                    Some(Expr::Number(789.0))
+                );
+            }
+            _ => panic!("Expected LispModule with explicit .lisp, got {:?}", result),
+        }
+    }
+
+
+    #[test]
+    fn test_require_module_not_found_on_filesystem() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // Ensure "non_existent_fs_module.lisp" does not exist in current dir or prelude
+        let result = run_require_expr("(require \"non_existent_fs_module\")", Rc::clone(&env));
+        
+        match result {
+            Err(LispError::ModuleNotFound(path)) => {
+                // Path will be absolute, check that it ends with the expected file name
+                assert!(path.to_string_lossy().ends_with("non_existent_fs_module.lisp"));
+            }
+            _ => panic!("Expected ModuleNotFound, got {:?}", result),
+        }
+    }
+
+    #[test]
+    fn test_require_module_with_runtime_error_in_file() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("runtime_error_module.lisp");
+        let mut file = File::create(&file_path).unwrap();
+        // This expression will cause a TypeError during evaluation inside the module
+        writeln!(file, "(+ 1 \"this-is-not-a-number\")").unwrap();
+        drop(file);
+
+        let original_dir = std::env::current_dir().unwrap();
+        std::env::set_current_dir(dir.path()).unwrap();
+
+        let canonical_file_path = fs::canonicalize(&file_path).unwrap();
+        MODULE_CACHE.with(|mc| mc.borrow_mut().remove(&canonical_file_path));
+
+        let result = run_require_expr("(require 'runtime_error_module)", Rc::clone(&env));
+        
+        std::env::set_current_dir(original_dir).unwrap();
+
+        match result {
+            Err(LispError::ModuleLoadError { path, source }) => {
+                assert_eq!(path, canonical_file_path);
+                assert!(matches!(*source, LispError::TypeError { .. }));
+            }
+            _ => panic!("Expected ModuleLoadError with TypeError source, got {:?}", result),
+        }
+    }
 }
