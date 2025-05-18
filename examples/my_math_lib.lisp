@@ -1,12 +1,9 @@
-; A simple library of math utility functions.
+; examples/my_lib.lisp - (originally my_math_lib.lisp)
+; A simple library.
 
-(log/info "my_math_lib.lisp: Defining square and double functions...")
+(log/info "my_lib.lisp: Loading library...")
 
-(let square (fn (x) (* x x)))
-(let double (fn (x) (* x 2)))
+(let greet (fn (name) (string/format "Hello, %s, from my_lib!" name)))
+(let pi 3.14159)
 
-(log/info "my_math_lib.lisp: square and double functions defined.")
-
-; To make these functions available when this file is required as a module,
-; they are now part of this file's environment.
-; The 'require' special form will make this environment accessible.
+(log/info "my_lib.lisp: greet function and pi variable defined.")
