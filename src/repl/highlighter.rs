@@ -1,7 +1,7 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
-use rustyline::completion::{Completer, Candidate as CompletionCandidate}; // Corrected: Candidate
+use rustyline::completion::Completer; // Simplified import
 use rustyline::hint::Hinter;
 // History trait is not directly used by ReplHelper, but by Editor.
 // use rustyline::history::History; 
@@ -11,7 +11,8 @@ use rustyline::error::ReadlineError; // Needed for manual Completer/Validator im
 
 // Removed unused: use rustyline_derive::Helper as RustylineHelperMacro;
 use std::borrow::Cow::{self, Owned};
-use rustyline::{Style, Color, Modifier, StyledText}; // Reverted: These are at the root
+use rustyline::style::{Style, Color, StyleModifier}; // Use StyleModifier from style module
+use rustyline::styled_text::StyledText;             // StyledText from styled_text module
 use rustyline::Helper as RustylineHelperTrait; // Helper trait is at the root
 
 lazy_static! {
@@ -49,7 +50,7 @@ impl Highlighter for LispHighlighter {
             (&*STRING_RE, Style::new().fg_color(Some(Color::Green))),
             (&*COMMENT_RE, Style::new().fg_color(Some(Color::DarkGrey))),
             (&*NUMBER_RE, Style::new().fg_color(Some(Color::Magenta))),
-            (&*KEYWORD_RE, Style::new().fg_color(Some(Color::Cyan)).modifier(Modifier::BOLD)),
+            (&*KEYWORD_RE, Style::new().fg_color(Some(Color::Cyan)).modifier(StyleModifier::BOLD)), // Use StyleModifier
             (&*BOOLEAN_NIL_RE, Style::new().fg_color(Some(Color::Yellow))),
             (&*PARENS_RE, Style::new().fg_color(Some(Color::Blue))),
             // Symbol RE is broad, so it's last.
@@ -114,8 +115,7 @@ impl ReplHelper {
 }
 
 impl Completer for ReplHelper {
-    // Directly use the struct type. The import alias `CompletionCandidate` remains but will be unused here.
-    type Candidate = rustyline::completion::Candidate; 
+    type Candidate = String; // Use String as a simple candidate type
 
     fn complete(
         &self,
