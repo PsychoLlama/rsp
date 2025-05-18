@@ -139,6 +139,34 @@ pub fn native_divide(args: Vec<Expr>) -> Result<Expr, LispError> {
     Ok(Expr::Number(result))
 }
 
+// Helper macro to generate comparison functions
+macro_rules! define_comparison_fn {
+    ($fn_name:ident, $op_str:expr, $op:tt) => {
+        #[tracing::instrument(skip(args), ret, err)]
+        pub fn $fn_name(args: Vec<Expr>) -> Result<Expr, LispError> {
+            trace!("Executing native '{}' function", $op_str);
+            if args.len() != 2 {
+                let arity_error = LispError::ArityMismatch(format!(
+                    "Native '{}' expects exactly 2 arguments, got {}",
+                    $op_str,
+                    args.len()
+                ));
+                error!(error = %arity_error, "Arity error in native '{}'", $op_str);
+                return Err(arity_error);
+            }
+            let lhs = extract_number(&args[0], $op_str)?;
+            let rhs = extract_number(&args[1], $op_str)?;
+            Ok(Expr::Bool(lhs $op rhs))
+        }
+    };
+}
+
+define_comparison_fn!(native_less_than, "<", <);
+define_comparison_fn!(native_greater_than, ">", >);
+define_comparison_fn!(native_less_than_or_equal, "<=", <=);
+define_comparison_fn!(native_greater_than_or_equal, ">=", >=);
+
+
 pub fn create_math_module() -> Expr {
     trace!("Creating math module");
     let math_env_rc = Environment::new();
@@ -176,6 +204,34 @@ pub fn create_math_module() -> Expr {
             Expr::NativeFunction(NativeFunction {
                 name: "/".to_string(),
                 func: native_divide,
+            }),
+        ),
+        (
+            "<".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "<".to_string(),
+                func: native_less_than,
+            }),
+        ),
+        (
+            ">".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: ">".to_string(),
+                func: native_greater_than,
+            }),
+        ),
+        (
+            "<=".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "<=".to_string(),
+                func: native_less_than_or_equal,
+            }),
+        ),
+        (
+            ">=".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: ">=".to_string(),
+                func: native_greater_than_or_equal,
             }),
         ),
     ]);
@@ -720,4 +776,94 @@ mod tests {
             })
         );
     }
+
+    // Helper macro for testing comparison functions
+    macro_rules! test_comparison_fn {
+        ($test_name:ident, $op_str:expr, $native_fn:ident, $lhs:expr, $rhs:expr, $expected:expr) => {
+            #[test]
+            fn $test_name() {
+                init_test_logging();
+                let env = Environment::new_with_prelude(); // Uses prelude
+                let expr = Expr::List(vec![
+                    Expr::Symbol($op_str.to_string()),
+                    Expr::Number($lhs),
+                    Expr::Number($rhs),
+                ]);
+                assert_eq!(eval(&expr, env), Ok(Expr::Bool($expected)));
+            }
+        };
+        // For type error tests
+        ($test_name:ident, $op_str:expr, $native_fn:ident, $lhs:expr, $rhs_expr:expr, expected_err_found:expr) => {
+            #[test]
+            fn $test_name() {
+                init_test_logging();
+                let env = Environment::new_with_prelude();
+                let expr = Expr::List(vec![
+                    Expr::Symbol($op_str.to_string()),
+                    Expr::Number($lhs),
+                    $rhs_expr, // e.g. Expr::Bool(true)
+                ]);
+                assert_eq!(
+                    eval(&expr, env),
+                    Err(LispError::TypeError {
+                        expected: "Number".to_string(),
+                        found: expected_err_found.to_string()
+                    })
+                );
+            }
+        };
+        // For arity error tests
+        ($test_name:ident, $op_str:expr, $native_fn:ident, arity_args: $args:expr, expected_len:expr) => {
+            #[test]
+            fn $test_name() {
+                init_test_logging();
+                let env = Environment::new_with_prelude();
+                let mut expr_args = vec![Expr::Symbol($op_str.to_string())];
+                for arg_val in $args {
+                    expr_args.push(Expr::Number(arg_val));
+                }
+                let expr = Expr::List(expr_args);
+                assert_eq!(
+                    eval(&expr, env),
+                    Err(LispError::ArityMismatch(format!(
+                        "Native '{}' expects exactly 2 arguments, got {}",
+                        $op_str,
+                        expected_len
+                    )))
+                );
+            }
+        };
+    }
+
+    // Tests for native_less_than (<)
+    test_comparison_fn!(test_native_less_than_true, "<", native_less_than, 2.0, 5.0, true);
+    test_comparison_fn!(test_native_less_than_false_equal, "<", native_less_than, 5.0, 5.0, false);
+    test_comparison_fn!(test_native_less_than_false_greater, "<", native_less_than, 5.0, 2.0, false);
+    test_comparison_fn!(test_native_less_than_type_error, "<", native_less_than, 2.0, Expr::Bool(true), expected_err_found: "Bool(true)");
+    test_comparison_fn!(test_native_less_than_arity_too_few, "<", native_less_than, arity_args: [2.0], expected_len: 1);
+    test_comparison_fn!(test_native_less_than_arity_too_many, "<", native_less_than, arity_args: [2.0, 3.0, 4.0], expected_len: 3);
+
+    // Tests for native_greater_than (>)
+    test_comparison_fn!(test_native_greater_than_true, ">", native_greater_than, 5.0, 2.0, true);
+    test_comparison_fn!(test_native_greater_than_false_equal, ">", native_greater_than, 5.0, 5.0, false);
+    test_comparison_fn!(test_native_greater_than_false_less, ">", native_greater_than, 2.0, 5.0, false);
+    test_comparison_fn!(test_native_greater_than_type_error, ">", native_greater_than, 5.0, Expr::String("s".to_string()), expected_err_found: "String(\"s\")");
+    test_comparison_fn!(test_native_greater_than_arity_too_few, ">", native_greater_than, arity_args: [2.0], expected_len: 1);
+    test_comparison_fn!(test_native_greater_than_arity_too_many, ">", native_greater_than, arity_args: [2.0, 3.0, 4.0], expected_len: 3);
+
+    // Tests for native_less_than_or_equal (<=)
+    test_comparison_fn!(test_native_less_than_or_equal_true_less, "<=", native_less_than_or_equal, 2.0, 5.0, true);
+    test_comparison_fn!(test_native_less_than_or_equal_true_equal, "<=", native_less_than_or_equal, 5.0, 5.0, true);
+    test_comparison_fn!(test_native_less_than_or_equal_false_greater, "<=", native_less_than_or_equal, 5.0, 2.0, false);
+    test_comparison_fn!(test_native_less_than_or_equal_type_error, "<=", native_less_than_or_equal, 2.0, Expr::Nil, expected_err_found: "Nil");
+    test_comparison_fn!(test_native_less_than_or_equal_arity_too_few, "<=", native_less_than_or_equal, arity_args: [2.0], expected_len: 1);
+    test_comparison_fn!(test_native_less_than_or_equal_arity_too_many, "<=", native_less_than_or_equal, arity_args: [2.0, 3.0, 4.0], expected_len: 3);
+
+    // Tests for native_greater_than_or_equal (>=)
+    test_comparison_fn!(test_native_greater_than_or_equal_true_greater, ">=", native_greater_than_or_equal, 5.0, 2.0, true);
+    test_comparison_fn!(test_native_greater_than_or_equal_true_equal, ">=", native_greater_than_or_equal, 5.0, 5.0, true);
+    test_comparison_fn!(test_native_greater_than_or_equal_false_less, ">=", native_greater_than_or_equal, 2.0, 5.0, false);
+    test_comparison_fn!(test_native_greater_than_or_equal_type_error, ">=", native_greater_than_or_equal, 5.0, Expr::Symbol("sym".to_string()), expected_err_found: "Symbol(\"sym\")");
+    test_comparison_fn!(test_native_greater_than_or_equal_arity_too_few, ">=", native_greater_than_or_equal, arity_args: [2.0], expected_len: 1);
+    test_comparison_fn!(test_native_greater_than_or_equal_arity_too_many, ">=", native_greater_than_or_equal, arity_args: [2.0, 3.0, 4.0], expected_len: 3);
 }
