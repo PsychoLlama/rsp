@@ -32,7 +32,12 @@ pub enum LispError {
 pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
     trace!("Starting evaluation");
     match expr {
-        Expr::Number(_) | Expr::Function(_) | Expr::NativeFunction(_) | Expr::Bool(_) | Expr::Nil | Expr::Module(_) => {
+        Expr::Number(_)
+        | Expr::Function(_)
+        | Expr::NativeFunction(_)
+        | Expr::Bool(_)
+        | Expr::Nil
+        | Expr::Module(_) => {
             debug!(env = ?env.borrow(), "Evaluating Number, Function, NativeFunction, Bool, Nil, or Module: {:?}", expr);
             Ok(expr.clone()) // These types evaluate to themselves
         }
@@ -59,9 +64,7 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                 Expr::Symbol(s) if s == special_forms::LET => {
                     builtins::eval_let(&list[1..], Rc::clone(&env))
                 }
-                Expr::Symbol(s) if s == special_forms::QUOTE => {
-                    builtins::eval_quote(&list[1..])
-                }
+                Expr::Symbol(s) if s == special_forms::QUOTE => builtins::eval_quote(&list[1..]),
                 Expr::Symbol(s) if s == special_forms::FN => {
                     builtins::eval_fn(&list[1..], Rc::clone(&env))
                 }
@@ -259,11 +262,16 @@ mod tests {
         // (let x 10)
         env.borrow_mut().define("x".to_string(), Expr::Number(10.0));
         // (x 1 2)
-        let expr = Expr::List(vec![Expr::Symbol("x".to_string()), Expr::Number(1.0), Expr::Number(2.0)]);
+        let expr = Expr::List(vec![
+            Expr::Symbol("x".to_string()),
+            Expr::Number(1.0),
+            Expr::Number(2.0),
+        ]);
         assert_eq!(
             eval(&expr, env),
             Err(LispError::NotAFunction(
-                "Expected a Lisp function or a native function, but found: Number(10.0)".to_string()
+                "Expected a Lisp function or a native function, but found: Number(10.0)"
+                    .to_string()
             ))
         );
     }
@@ -273,7 +281,11 @@ mod tests {
         init_test_logging();
         let env = Environment::new();
         // (1 2 3) - trying to call a number
-        let expr = Expr::List(vec![Expr::Number(1.0), Expr::Number(2.0), Expr::Number(3.0)]);
+        let expr = Expr::List(vec![
+            Expr::Number(1.0),
+            Expr::Number(2.0),
+            Expr::Number(3.0),
+        ]);
         assert_eq!(
             eval(&expr, env),
             Err(LispError::NotAFunction(
@@ -281,7 +293,6 @@ mod tests {
             ))
         );
     }
-
 
     // Tests for 'fn' and function calls
     #[test]
@@ -301,10 +312,7 @@ mod tests {
         eval(&define_fn_expr, Rc::clone(&env)).unwrap();
 
         // (my-fn 10)
-        let call_expr = Expr::List(vec![
-            Expr::Symbol("my-fn".to_string()),
-            Expr::Number(10.0),
-        ]);
+        let call_expr = Expr::List(vec![Expr::Symbol("my-fn".to_string()), Expr::Number(10.0)]);
         assert_eq!(eval(&call_expr, env), Ok(Expr::Number(10.0)));
     }
 
@@ -320,7 +328,10 @@ mod tests {
             Expr::Symbol("my-fn".to_string()),
             Expr::List(vec![
                 Expr::Symbol("fn".to_string()),
-                Expr::List(vec![Expr::Symbol("a".to_string()), Expr::Symbol("b".to_string())]),
+                Expr::List(vec![
+                    Expr::Symbol("a".to_string()),
+                    Expr::Symbol("b".to_string()),
+                ]),
                 Expr::Symbol("b".to_string()), // Returns the second param
             ]),
         ]);
@@ -345,17 +356,17 @@ mod tests {
             Expr::Symbol("my-fn".to_string()),
             Expr::List(vec![
                 Expr::Symbol("fn".to_string()),
-                Expr::List(vec![Expr::Symbol("x".to_string()), Expr::Symbol("y".to_string())]),
+                Expr::List(vec![
+                    Expr::Symbol("x".to_string()),
+                    Expr::Symbol("y".to_string()),
+                ]),
                 Expr::Symbol("x".to_string()),
             ]),
         ]);
         eval(&define_fn_expr, Rc::clone(&env)).unwrap();
 
         // (my-fn 10) - too few args
-        let call_expr = Expr::List(vec![
-            Expr::Symbol("my-fn".to_string()),
-            Expr::Number(10.0),
-        ]);
+        let call_expr = Expr::List(vec![Expr::Symbol("my-fn".to_string()), Expr::Number(10.0)]);
         assert_eq!(
             eval(&call_expr, env),
             Err(LispError::ArityMismatch(
@@ -407,7 +418,8 @@ mod tests {
         // (let captured-val 100)
         // (let my-closure (fn () captured-val))
         // (my-closure) -> 100
-        env.borrow_mut().define("captured_val".to_string(), Expr::Number(100.0));
+        env.borrow_mut()
+            .define("captured_val".to_string(), Expr::Number(100.0));
 
         let define_closure_expr = Expr::List(vec![
             Expr::Symbol("let".to_string()),
@@ -421,7 +433,8 @@ mod tests {
         eval(&define_closure_expr, Rc::clone(&env)).unwrap();
 
         // Now, let's shadow `captured_val` in the current env to ensure the closure uses its captured one.
-        env.borrow_mut().define("captured_val".to_string(), Expr::Number(999.0));
+        env.borrow_mut()
+            .define("captured_val".to_string(), Expr::Number(999.0));
 
         let call_closure_expr = Expr::List(vec![Expr::Symbol("my_closure".to_string())]);
         assert_eq!(eval(&call_closure_expr, env), Ok(Expr::Number(999.0))); // Expect the captured env to see the update
@@ -437,16 +450,19 @@ mod tests {
         // (let fn-generator (fn (param1) (fn (param2) outer-val)))
         // (let my-fn (fn-generator 10)) ; param1 is 10, not used by inner
         // (my-fn 20) -> 50 ; param2 is 20, not used by inner
-        
-        env.borrow_mut().define("outer_val".to_string(), Expr::Number(50.0));
+
+        env.borrow_mut()
+            .define("outer_val".to_string(), Expr::Number(50.0));
 
         let define_generator_expr = Expr::List(vec![
             Expr::Symbol("let".to_string()),
             Expr::Symbol("fn_generator".to_string()),
-            Expr::List(vec![ // (fn (param1) ...)
+            Expr::List(vec![
+                // (fn (param1) ...)
                 Expr::Symbol("fn".to_string()),
                 Expr::List(vec![Expr::Symbol("param1".to_string())]),
-                Expr::List(vec![ // (fn (param2) outer_val)
+                Expr::List(vec![
+                    // (fn (param2) outer_val)
                     Expr::Symbol("fn".to_string()),
                     Expr::List(vec![Expr::Symbol("param2".to_string())]),
                     Expr::Symbol("outer_val".to_string()),
@@ -465,9 +481,10 @@ mod tests {
             ]),
         ]);
         eval(&get_inner_fn_expr, Rc::clone(&env)).unwrap();
-        
+
         // Shadow outer_val to ensure closure uses the one from its definition time
-        env.borrow_mut().define("outer_val".to_string(), Expr::Number(777.0));
+        env.borrow_mut()
+            .define("outer_val".to_string(), Expr::Number(777.0));
 
         // (my_fn 20)
         let call_inner_fn_expr = Expr::List(vec![
@@ -477,7 +494,7 @@ mod tests {
         assert_eq!(eval(&call_inner_fn_expr, env), Ok(Expr::Number(777.0))); // Expect the closure to see the updated outer_val
     }
 
-     #[test]
+    #[test]
     fn eval_recursive_fn_let_style() {
         init_test_logging();
         let env = Environment::new();
@@ -500,37 +517,52 @@ mod tests {
         // (let f (fn () 20)) ; new f, g still has old f
         // (g) -> 10
 
-        eval(&Expr::List(vec![ // (let f (fn () 10))
-            Expr::Symbol("let".to_string()),
-            Expr::Symbol("f".to_string()),
-            Expr::List(vec![
-                Expr::Symbol("fn".to_string()),
-                Expr::List(vec![]),
-                Expr::Number(10.0)
-            ])
-        ]), Rc::clone(&env)).unwrap();
+        eval(
+            &Expr::List(vec![
+                // (let f (fn () 10))
+                Expr::Symbol("let".to_string()),
+                Expr::Symbol("f".to_string()),
+                Expr::List(vec![
+                    Expr::Symbol("fn".to_string()),
+                    Expr::List(vec![]),
+                    Expr::Number(10.0),
+                ]),
+            ]),
+            Rc::clone(&env),
+        )
+        .unwrap();
 
-        eval(&Expr::List(vec![ // (let g (fn () (f)))
-            Expr::Symbol("let".to_string()),
-            Expr::Symbol("g".to_string()),
-            Expr::List(vec![
-                Expr::Symbol("fn".to_string()),
-                Expr::List(vec![]),
-                Expr::List(vec![Expr::Symbol("f".to_string())]) // Call f
-            ])
-        ]), Rc::clone(&env)).unwrap();
+        eval(
+            &Expr::List(vec![
+                // (let g (fn () (f)))
+                Expr::Symbol("let".to_string()),
+                Expr::Symbol("g".to_string()),
+                Expr::List(vec![
+                    Expr::Symbol("fn".to_string()),
+                    Expr::List(vec![]),
+                    Expr::List(vec![Expr::Symbol("f".to_string())]), // Call f
+                ]),
+            ]),
+            Rc::clone(&env),
+        )
+        .unwrap();
 
         // Redefine f
-        eval(&Expr::List(vec![ // (let f (fn () 20))
-            Expr::Symbol("let".to_string()),
-            Expr::Symbol("f".to_string()),
-            Expr::List(vec![
-                Expr::Symbol("fn".to_string()),
-                Expr::List(vec![]),
-                Expr::Number(20.0)
-            ])
-        ]), Rc::clone(&env)).unwrap();
-        
+        eval(
+            &Expr::List(vec![
+                // (let f (fn () 20))
+                Expr::Symbol("let".to_string()),
+                Expr::Symbol("f".to_string()),
+                Expr::List(vec![
+                    Expr::Symbol("fn".to_string()),
+                    Expr::List(vec![]),
+                    Expr::Number(20.0),
+                ]),
+            ]),
+            Rc::clone(&env),
+        )
+        .unwrap();
+
         // Call g
         let call_g_expr = Expr::List(vec![Expr::Symbol("g".to_string())]);
         assert_eq!(eval(&call_g_expr, env), Ok(Expr::Number(20.0))); // g calls the f from its closure, which has been updated

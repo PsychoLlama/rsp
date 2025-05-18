@@ -1,16 +1,15 @@
-
 use nom::{
-    character::complete::multispace0, // For handling whitespace, removed multispace1
-    // combinator::map, // Removed as Parser::map method is used
-    branch::alt,                                     // For trying multiple parsers
-    bytes::complete::tag,                            // For matching literal strings
-    character::complete::{satisfy, multispace1},     // For character-level parsing & whitespace
-    combinator::recognize,                           // For transforming and recognizing parser output (removed map)
-    multi::{many0, separated_list0},                 // For repeating parsers
-    number::complete::double,                        // For parsing f64 numbers
-    sequence::{delimited, pair, preceded, terminated}, // For sequencing parsers (added preceded, terminated)
     IResult,
     Parser, // Import the Parser trait to use its methods like .map() and .parse()
+    // combinator::map, // Removed as Parser::map method is used
+    branch::alt,                                       // For trying multiple parsers
+    bytes::complete::tag,                              // For matching literal strings
+    character::complete::multispace0, // For handling whitespace, removed multispace1
+    character::complete::{multispace1, satisfy}, // For character-level parsing & whitespace
+    combinator::recognize, // For transforming and recognizing parser output (removed map)
+    multi::{many0, separated_list0}, // For repeating parsers
+    number::complete::double, // For parsing f64 numbers
+    sequence::{delimited, pair, preceded, terminated}, // For sequencing parsers (added preceded, terminated)
 };
 use tracing::trace; // For logging parser activity
 
@@ -60,14 +59,11 @@ fn parse_symbol_raw(input: &str) -> IResult<&str, Expr> {
     trace!("Attempting to parse symbol");
 
     // Define characters allowed to start a symbol
-    let initial_char = satisfy(|c: char| {
-        c.is_alphabetic() || "!$%&*/:<=>?@^_~+-".contains(c)
-    });
+    let initial_char = satisfy(|c: char| c.is_alphabetic() || "!$%&*/:<=>?@^_~+-".contains(c));
 
     // Define characters allowed in subsequent parts of a symbol
-    let subsequent_char = satisfy(|c: char| {
-        c.is_alphanumeric() || "!$%&*/:<=>?@^_~+-.#".contains(c)
-    });
+    let subsequent_char =
+        satisfy(|c: char| c.is_alphanumeric() || "!$%&*/:<=>?@^_~+-.#".contains(c));
 
     // A symbol is an initial character followed by zero or more subsequent characters.
     // `recognize` captures the consumed input slice.
@@ -92,12 +88,12 @@ fn list_raw(input: &str) -> IResult<&str, Expr> {
             separated_list0(
                 multispace1, // Separator: one or more whitespace chars
                 // Element parser: consumes leading whitespace, then one core expression
-                preceded(multispace0, expr_recursive_impl) 
+                preceded(multispace0, expr_recursive_impl),
             ),
-            multispace0 // Consume trailing whitespace before the closing parenthesis
+            multispace0, // Consume trailing whitespace before the closing parenthesis
         ),
         // Consume )
-        tag(")")
+        tag(")"),
     )
     .map(Expr::List)
     .parse(input)
@@ -113,7 +109,7 @@ fn expr_recursive_impl(input: &str) -> IResult<&str, Expr> {
         parse_true_raw,
         parse_false_raw,
         parse_nil_raw,
-        list_raw,   // list_raw is now an alternative here
+        list_raw, // list_raw is now an alternative here
         parse_symbol_raw,
     ))
     .parse(input)
@@ -125,12 +121,12 @@ fn expr_recursive_impl(input: &str) -> IResult<&str, Expr> {
 pub fn parse_expr(input: &str) -> IResult<&str, Expr> {
     trace!("Attempting to parse expression (with surrounding whitespace handling)");
     delimited(
-        multispace0, // Consume leading whitespace
+        multispace0,         // Consume leading whitespace
         expr_recursive_impl, // Parse the core expression
-        multispace0  // Consume trailing whitespace
-    ).parse(input)
+        multispace0,         // Consume trailing whitespace
+    )
+    .parse(input)
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -179,7 +175,7 @@ mod tests {
         let result = parse_expr("+77");
         assert_eq!(result, Ok(("", Expr::Number(77.0))));
     }
-    
+
     #[test]
     fn test_parse_number_scientific_notation() {
         init_test_logging();
@@ -195,7 +191,7 @@ mod tests {
         let result = parse_expr("123 abc");
         assert_eq!(result, Ok(("abc", Expr::Number(123.0)))); // Corrected: ws consumes the space after the number
     }
-    
+
     #[test]
     fn test_parse_number_leaves_remaining_input_no_trailing_ws_for_number() {
         init_test_logging();
@@ -203,27 +199,39 @@ mod tests {
         assert_eq!(result, Ok(("abc", Expr::Number(123.0))));
     }
 
-
     #[test]
     fn test_parse_not_a_number() {
         init_test_logging();
         let result = parse_expr("abc");
         // "abc" is not a number, bool, or nil, so it should be parsed as a symbol.
-        assert_eq!(result, Ok(("", Expr::Symbol("abc".to_string()))), "Should parse 'abc' as a symbol. Got: {:?}", result);
+        assert_eq!(
+            result,
+            Ok(("", Expr::Symbol("abc".to_string()))),
+            "Should parse 'abc' as a symbol. Got: {:?}",
+            result
+        );
     }
 
     #[test]
     fn test_parse_empty_input() {
         init_test_logging();
         let result = parse_expr("");
-        assert!(result.is_err(), "Should fail to parse empty string. Got: {:?}", result);
+        assert!(
+            result.is_err(),
+            "Should fail to parse empty string. Got: {:?}",
+            result
+        );
     }
 
     #[test]
     fn test_parse_only_whitespace() {
         init_test_logging();
         let result = parse_expr("   ");
-         assert!(result.is_err(), "Should fail to parse only whitespace. Got: {:?}", result);
+        assert!(
+            result.is_err(),
+            "Should fail to parse only whitespace. Got: {:?}",
+            result
+        );
     }
 
     // Tests for true, false, nil literals
@@ -253,27 +261,39 @@ mod tests {
     fn test_parse_simple_symbol() {
         init_test_logging();
         assert_eq!(parse_expr("foo"), Ok(("", Expr::Symbol("foo".to_string()))));
-        assert_eq!(parse_expr("  bar  "), Ok(("", Expr::Symbol("bar".to_string()))));
+        assert_eq!(
+            parse_expr("  bar  "),
+            Ok(("", Expr::Symbol("bar".to_string())))
+        );
     }
 
     #[test]
     fn test_parse_symbol_with_hyphen() {
         init_test_logging();
-        assert_eq!(parse_expr("my-variable"), Ok(("", Expr::Symbol("my-variable".to_string()))));
+        assert_eq!(
+            parse_expr("my-variable"),
+            Ok(("", Expr::Symbol("my-variable".to_string())))
+        );
     }
 
     #[test]
     fn test_parse_symbol_with_numbers() {
         init_test_logging();
-        assert_eq!(parse_expr("var123"), Ok(("", Expr::Symbol("var123".to_string()))));
+        assert_eq!(
+            parse_expr("var123"),
+            Ok(("", Expr::Symbol("var123".to_string())))
+        );
     }
-    
+
     #[test]
     fn test_parse_symbol_with_question_mark() {
         init_test_logging();
-        assert_eq!(parse_expr("list?"), Ok(("", Expr::Symbol("list?".to_string()))));
+        assert_eq!(
+            parse_expr("list?"),
+            Ok(("", Expr::Symbol("list?".to_string())))
+        );
     }
-    
+
     #[test]
     fn test_parse_symbol_with_special_chars() {
         init_test_logging();
@@ -305,17 +325,26 @@ mod tests {
         // Keywords for special forms should parse as symbols
         assert_eq!(parse_expr("let"), Ok(("", Expr::Symbol("let".to_string()))));
         assert_eq!(parse_expr("if"), Ok(("", Expr::Symbol("if".to_string()))));
-        assert_eq!(parse_expr("quote"), Ok(("", Expr::Symbol("quote".to_string()))));
+        assert_eq!(
+            parse_expr("quote"),
+            Ok(("", Expr::Symbol("quote".to_string())))
+        );
         assert_eq!(parse_expr("fn"), Ok(("", Expr::Symbol("fn".to_string()))));
     }
 
     #[test]
     fn test_parse_symbol_leaves_remaining_input() {
         init_test_logging();
-        assert_eq!(parse_expr("symbol-name rest"), Ok(("rest", Expr::Symbol("symbol-name".to_string()))));
-        assert_eq!(parse_expr("  symbol-name   rest"), Ok(("rest", Expr::Symbol("symbol-name".to_string()))));
+        assert_eq!(
+            parse_expr("symbol-name rest"),
+            Ok(("rest", Expr::Symbol("symbol-name".to_string())))
+        );
+        assert_eq!(
+            parse_expr("  symbol-name   rest"),
+            Ok(("rest", Expr::Symbol("symbol-name".to_string())))
+        );
     }
-    
+
     #[test]
     fn test_parse_true_leaves_remaining_input() {
         init_test_logging();
@@ -329,13 +358,20 @@ mod tests {
         // For now, this behavior is as expected (error).
         init_test_logging();
         let result = parse_expr(".foo");
-        assert!(result.is_err(), "Symbol starting with '.' should fail with current rules: {:?}", result);
+        assert!(
+            result.is_err(),
+            "Symbol starting with '.' should fail with current rules: {:?}",
+            result
+        );
     }
-    
+
     #[test]
     fn test_parse_symbol_with_dot_allowed_internally() {
         init_test_logging();
-        assert_eq!(parse_expr("foo.bar"), Ok(("", Expr::Symbol("foo.bar".to_string()))));
+        assert_eq!(
+            parse_expr("foo.bar"),
+            Ok(("", Expr::Symbol("foo.bar".to_string())))
+        );
     }
 
     #[test]
@@ -346,9 +382,21 @@ mod tests {
         // If initial_char allowed '.', then ".." would be `initial='.'`, `subsequent=['.']`.
         init_test_logging();
         // A single dot '.' is not a valid symbol by current rules (not in initial_char set).
-        assert!(parse_expr(".").is_err(), "Single dot symbol should fail with current rules. Got: {:?}", parse_expr("."));
-        assert!(parse_expr("..").is_err(), "Double dot symbol should fail with current rules. Got: {:?}", parse_expr(".."));
-        assert!(parse_expr("...").is_err(), "Triple dot symbol should fail with current rules. Got: {:?}", parse_expr("..."));
+        assert!(
+            parse_expr(".").is_err(),
+            "Single dot symbol should fail with current rules. Got: {:?}",
+            parse_expr(".")
+        );
+        assert!(
+            parse_expr("..").is_err(),
+            "Double dot symbol should fail with current rules. Got: {:?}",
+            parse_expr("..")
+        );
+        assert!(
+            parse_expr("...").is_err(),
+            "Triple dot symbol should fail with current rules. Got: {:?}",
+            parse_expr("...")
+        );
     }
 
     // Tests for lists
@@ -362,8 +410,14 @@ mod tests {
     #[test]
     fn test_parse_list_with_one_number() {
         init_test_logging();
-        assert_eq!(parse_expr("(1)"), Ok(("", Expr::List(vec![Expr::Number(1.0)]))));
-        assert_eq!(parse_expr(" ( 1 ) "), Ok(("", Expr::List(vec![Expr::Number(1.0)]))));
+        assert_eq!(
+            parse_expr("(1)"),
+            Ok(("", Expr::List(vec![Expr::Number(1.0)])))
+        );
+        assert_eq!(
+            parse_expr(" ( 1 ) "),
+            Ok(("", Expr::List(vec![Expr::Number(1.0)])))
+        );
     }
 
     #[test]
@@ -373,14 +427,22 @@ mod tests {
             parse_expr("(1 2 3)"),
             Ok((
                 "",
-                Expr::List(vec![Expr::Number(1.0), Expr::Number(2.0), Expr::Number(3.0)])
+                Expr::List(vec![
+                    Expr::Number(1.0),
+                    Expr::Number(2.0),
+                    Expr::Number(3.0)
+                ])
             ))
         );
         assert_eq!(
             parse_expr(" (  1   2   3  ) "),
             Ok((
                 "",
-                Expr::List(vec![Expr::Number(1.0), Expr::Number(2.0), Expr::Number(3.0)])
+                Expr::List(vec![
+                    Expr::Number(1.0),
+                    Expr::Number(2.0),
+                    Expr::Number(3.0)
+                ])
             ))
         );
     }
@@ -445,7 +507,7 @@ mod tests {
             ))
         );
     }
-    
+
     #[test]
     fn test_parse_deeply_nested_list() {
         init_test_logging();
@@ -466,7 +528,6 @@ mod tests {
         assert_eq!(parse_expr(input), Ok(("", expected)));
     }
 
-
     #[test]
     fn test_parse_list_leaves_remaining_input() {
         init_test_logging();
@@ -486,9 +547,13 @@ mod tests {
     fn test_parse_list_unmatched_opening_paren() {
         init_test_logging();
         let result = parse_expr("(a b");
-        assert!(result.is_err(), "Should fail for unmatched opening parenthesis. Got: {:?}", result);
+        assert!(
+            result.is_err(),
+            "Should fail for unmatched opening parenthesis. Got: {:?}",
+            result
+        );
     }
-    
+
     #[test]
     fn test_parse_list_unmatched_closing_paren() {
         init_test_logging();
@@ -498,10 +563,10 @@ mod tests {
         // For `parse_expr` itself, it would parse `a` and leave `b)`.
         // If we parse `(a b))`, it should parse `(a b)` and leave `)`.
         let result = parse_expr("(a b))");
-         assert_eq!(
+        assert_eq!(
             result,
             Ok((
-                ")", 
+                ")",
                 Expr::List(vec![
                     Expr::Symbol("a".to_string()),
                     Expr::Symbol("b".to_string())
@@ -510,7 +575,11 @@ mod tests {
         );
 
         let result_just_paren = parse_expr(")");
-        assert!(result_just_paren.is_err(), "Should fail for stray closing parenthesis. Got: {:?}", result_just_paren);
+        assert!(
+            result_just_paren.is_err(),
+            "Should fail for stray closing parenthesis. Got: {:?}",
+            result_just_paren
+        );
     }
 
     #[test]
@@ -525,18 +594,28 @@ mod tests {
         // "(a b)" is fine
         assert_eq!(
             parse_expr("(a b)"),
-            Ok(("", Expr::List(vec![Expr::Symbol("a".to_string()), Expr::Symbol("b".to_string())])))
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("a".to_string()),
+                    Expr::Symbol("b".to_string())
+                ])
+            ))
         );
         // "(1-2)" should be a list with one symbol "1-2" if symbols can start with numbers when followed by non-numbers
         // Current symbol rule: initial_char cannot be a digit. So "1-2" is not a symbol.
         // It's also not a number. So `parse_expr("1-2")` would fail.
         // Thus `(1-2)` should fail to parse its element.
         let result = parse_expr("(1-2)");
-        assert!(result.is_err(), "Parsing (1-2) should fail as 1-2 is not a valid expr. Got: {:?}", result);
+        assert!(
+            result.is_err(),
+            "Parsing (1-2) should fail as 1-2 is not a valid expr. Got: {:?}",
+            result
+        );
 
         // "(+1)" will be parsed as List([Number(1.0)]) because parse_number_raw takes precedence
         // over parse_symbol_raw for the token "+1", and nom::number::complete::double parses "+1" as 1.0.
-         assert_eq!(
+        assert_eq!(
             parse_expr("(+1)"),
             Ok(("", Expr::List(vec![Expr::Number(1.0)])))
         );

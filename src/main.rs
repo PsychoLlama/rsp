@@ -1,28 +1,25 @@
-mod cli; // Add cli module
-mod logging; // Add logging module
-mod engine; // Add engine module
+mod cli;
+mod engine;
+mod logging;
 
 use anyhow::Result;
-use clap::Parser; // Import the Parser trait
+use clap::Parser;
 use tracing::info;
 
-// Import necessary items for parsing and evaluation
-use crate::cli::{Cli, Commands}; // Import new CLI structs
-use crate::engine::parser::parse_expr;
-use crate::engine::eval::eval;
+use crate::cli::{Cli, Commands};
 use crate::engine::env::Environment;
-use std::fs; // For file reading
-use std::rc::Rc; // For Rc::clone on environment
-// std::path::PathBuf is used in cli.rs, not directly here unless for type annotation if needed.
+use crate::engine::eval::eval;
+use crate::engine::parser::parse_expr;
+use std::fs;
+use std::rc::Rc;
 
 #[tracing::instrument]
 fn main() -> Result<()> {
-    // Initialize tracing subscriber
     crate::logging::init_logging();
 
     info!("Starting Lisp interpreter");
 
-    let cli_args = Cli::parse(); // Use the new Cli struct from cli.rs
+    let cli_args = Cli::parse();
     info!(cli_args = ?cli_args, "Parsed CLI arguments");
 
     match cli_args.command {
@@ -33,7 +30,10 @@ fn main() -> Result<()> {
                 match parse_expr(&expr_str) {
                     Ok((remaining_input, ast)) => {
                         if !remaining_input.trim().is_empty() {
-                            eprintln!("Error: Unexpected input found after expression: '{}'", remaining_input);
+                            eprintln!(
+                                "Error: Unexpected input found after expression: '{}'",
+                                remaining_input
+                            );
                         } else {
                             info!(parsed_ast = ?ast, "Successfully parsed expression");
                             let root_env = Environment::new_with_prelude();
@@ -51,7 +51,9 @@ fn main() -> Result<()> {
                     }
                     Err(e) => {
                         let err_msg = match e {
-                            nom::Err::Incomplete(_) => "Parsing incomplete: More input needed.".to_string(),
+                            nom::Err::Incomplete(_) => {
+                                "Parsing incomplete: More input needed.".to_string()
+                            }
                             nom::Err::Error(e) | nom::Err::Failure(e) => {
                                 format!("Parsing Error: {:?}", e)
                             }
@@ -84,15 +86,23 @@ fn main() -> Result<()> {
                                     // as the side effect is on file_env.
                                     if let Err(e) = eval(&ast, Rc::clone(&file_env)) {
                                         info!(evaluation_error = %e, "Evaluation error from file expression");
-                                            eprintln!("Evaluation Error in file '{}': {}", file_path.display(), e);
-                                            return Ok(()); // Stop on first evaluation error
-                                        }
+                                        eprintln!(
+                                            "Evaluation Error in file '{}': {}",
+                                            file_path.display(),
+                                            e
+                                        );
+
+                                        return Ok(()); // Stop on first evaluation error
                                     }
                                     current_input = remaining; // Correctly placed inside the Ok arm
-                                }, // Added comma for match arm separation
+                                }
                                 Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                                     if !current_input.is_empty() {
-                                        let err_msg = format!("Parsing Error in file '{}': {:?}", file_path.display(), e);
+                                        let err_msg = format!(
+                                            "Parsing Error in file '{}': {:?}",
+                                            file_path.display(),
+                                            e
+                                        );
                                         info!(parsing_error = %err_msg, "Parsing failed in file");
                                         eprintln!("{}", err_msg);
                                         return Ok(()); // Stop on first parsing error
@@ -100,7 +110,10 @@ fn main() -> Result<()> {
                                     break; // End of parsable content or legitimate error on empty remaining string
                                 }
                                 Err(nom::Err::Incomplete(_)) => {
-                                    eprintln!("Parsing incomplete in file '{}': More input needed.", file_path.display());
+                                    eprintln!(
+                                        "Parsing incomplete in file '{}': More input needed.",
+                                        file_path.display()
+                                    );
                                     return Ok(()); // Stop on incomplete parse
                                 }
                             }
@@ -108,11 +121,12 @@ fn main() -> Result<()> {
 
                         // After evaluating all expressions, construct and print the module.
                         let module_path_str = file_path.display().to_string();
-                        let module_expr = crate::engine::ast::Expr::Module(crate::engine::ast::LispModule {
-                            path: module_path_str.clone(),
-                            env: file_env,
-                        });
-                        
+                        let module_expr =
+                            crate::engine::ast::Expr::Module(crate::engine::ast::LispModule {
+                                path: module_path_str.clone(),
+                                env: file_env,
+                            });
+
                         if !expressions_evaluated && content.trim().is_empty() {
                             info!(file_path = %module_path_str, "File is empty, resulting in an empty module environment.");
                         } else if !expressions_evaluated {

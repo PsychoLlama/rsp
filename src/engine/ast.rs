@@ -38,8 +38,8 @@ pub enum Expr {
     Bool(bool),
     Nil,
     Module(LispModule), // New variant for modules
-    // Future extensions could include:
-    // String(String),
+                        // Future extensions could include:
+                        // String(String),
 }
 
 #[derive(Clone)]

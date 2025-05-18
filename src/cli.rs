@@ -24,6 +24,10 @@ pub struct RunArgs {
     pub expr: Option<String>,
 
     /// Path to a Lisp file to execute.
-    #[clap(value_name = "FILE_PATH", conflicts_with = "expr", required_unless_present = "expr")]
+    #[clap(
+        value_name = "FILE_PATH",
+        conflicts_with = "expr",
+        required_unless_present = "expr"
+    )]
     pub file: Option<PathBuf>,
 }

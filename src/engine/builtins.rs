@@ -96,10 +96,7 @@ pub fn eval_fn(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
                 param_names.push(name.clone());
             }
             _ => {
-                error!(
-                    "Parameters in 'fn' must be symbols, found {:?}",
-                    param
-                );
+                error!("Parameters in 'fn' must be symbols, found {:?}", param);
                 return Err(LispError::TypeError {
                     expected: "Symbol".to_string(),
                     found: format!("{:?}", param),
@@ -195,7 +192,8 @@ fn extract_number(expr: &Expr, op_name: &str) -> Result<f64, LispError> {
 pub fn native_add(args: Vec<Expr>) -> Result<Expr, LispError> {
     trace!("Executing native '+' function");
     let mut sum = 0.0;
-    if args.is_empty() { // Standard behavior for (+) is 0
+    if args.is_empty() {
+        // Standard behavior for (+) is 0
         return Ok(Expr::Number(0.0));
     }
     for arg in args {
@@ -233,7 +231,8 @@ pub fn native_equals(args: Vec<Expr>) -> Result<Expr, LispError> {
 pub fn native_multiply(args: Vec<Expr>) -> Result<Expr, LispError> {
     trace!("Executing native '*' function");
     let mut product = 1.0;
-    if args.is_empty() { // Standard behavior for (*) is 1
+    if args.is_empty() {
+        // Standard behavior for (*) is 1
         return Ok(Expr::Number(1.0));
     }
     for arg in args {
@@ -242,12 +241,11 @@ pub fn native_multiply(args: Vec<Expr>) -> Result<Expr, LispError> {
     Ok(Expr::Number(product))
 }
 
-
 // Future built-in functions will go here.
 
 #[cfg(test)]
 mod tests {
-    use super::{native_add, native_equals, native_multiply}; // Import parent module's functions
+    use super::{native_add, native_equals}; // Import parent module's functions
     use crate::engine::ast::{Expr, LispFunction, NativeFunction}; // Added NativeFunction
     use crate::engine::env::Environment;
     use crate::engine::eval::{LispError, eval}; // Need main eval for testing integration
@@ -395,7 +393,11 @@ mod tests {
         let result = eval(&fn_expr_ast, Rc::clone(&env));
 
         match result {
-            Ok(Expr::Function(LispFunction { params, body, closure })) => {
+            Ok(Expr::Function(LispFunction {
+                params,
+                body,
+                closure,
+            })) => {
                 assert_eq!(params, vec!["x".to_string(), "y".to_string()]);
                 assert_eq!(*body, Expr::Symbol("x".to_string()));
                 // Check if the closure is the environment we passed.
@@ -536,10 +538,7 @@ mod tests {
         init_test_logging();
         let env = Environment::new();
         // (quote 10)
-        let expr = Expr::List(vec![
-            Expr::Symbol("quote".to_string()),
-            Expr::Number(10.0),
-        ]);
+        let expr = Expr::List(vec![Expr::Symbol("quote".to_string()), Expr::Number(10.0)]);
         assert_eq!(eval(&expr, env), Ok(Expr::Number(10.0)));
     }
 
@@ -561,10 +560,7 @@ mod tests {
         init_test_logging();
         let env = Environment::new();
         // (quote ())
-        let expr = Expr::List(vec![
-            Expr::Symbol("quote".to_string()),
-            Expr::List(vec![]),
-        ]);
+        let expr = Expr::List(vec![Expr::Symbol("quote".to_string()), Expr::List(vec![])]);
         assert_eq!(eval(&expr, env), Ok(Expr::List(vec![])));
     }
 
@@ -580,10 +576,7 @@ mod tests {
                 Expr::Symbol("c".to_string()),
             ]),
         ]);
-        let expr = Expr::List(vec![
-            Expr::Symbol("quote".to_string()),
-            nested_list.clone(),
-        ]);
+        let expr = Expr::List(vec![Expr::Symbol("quote".to_string()), nested_list.clone()]);
         assert_eq!(eval(&expr, env), Ok(nested_list));
     }
 
@@ -689,7 +682,7 @@ mod tests {
         ]);
         assert_eq!(eval(&expr, env), Ok(Expr::Number(10.0)));
     }
-    
+
     #[test]
     fn eval_if_false_condition_no_else_branch() {
         init_test_logging();
@@ -720,7 +713,8 @@ mod tests {
     fn eval_if_condition_evaluates() {
         init_test_logging();
         let env = Environment::new();
-        env.borrow_mut().define("cond-var".to_string(), Expr::Bool(true));
+        env.borrow_mut()
+            .define("cond-var".to_string(), Expr::Bool(true));
         // (if cond-var 10 20)
         let expr = Expr::List(vec![
             Expr::Symbol("if".to_string()),
@@ -736,10 +730,7 @@ mod tests {
         init_test_logging();
         let env = Environment::new();
         // (if true)
-        let expr = Expr::List(vec![
-            Expr::Symbol("if".to_string()),
-            Expr::Bool(true),
-        ]);
+        let expr = Expr::List(vec![Expr::Symbol("if".to_string()), Expr::Bool(true)]);
         assert_eq!(
             eval(&expr, env),
             Err(LispError::ArityMismatch(
@@ -774,7 +765,8 @@ mod tests {
     fn eval_if_short_circuit_then_branch() {
         init_test_logging();
         let env = Environment::new();
-        env.borrow_mut().define("then-val".to_string(), Expr::Number(100.0));
+        env.borrow_mut()
+            .define("then-val".to_string(), Expr::Number(100.0));
         // (if true then-val else-val) ; else-val is undefined
         let expr = Expr::List(vec![
             Expr::Symbol("if".to_string()),
@@ -790,7 +782,8 @@ mod tests {
     fn eval_if_short_circuit_else_branch() {
         init_test_logging();
         let env = Environment::new();
-        env.borrow_mut().define("else-val".to_string(), Expr::Number(200.0));
+        env.borrow_mut()
+            .define("else-val".to_string(), Expr::Number(200.0));
         // (if false then-val else-val) ; then-val is undefined
         let expr = Expr::List(vec![
             Expr::Symbol("if".to_string()),
@@ -928,7 +921,7 @@ mod tests {
         ]);
         assert_eq!(eval(&expr, env), Ok(Expr::Bool(false)));
     }
-    
+
     #[test]
     fn test_native_equals_multiple_true() {
         init_test_logging();
@@ -985,10 +978,7 @@ mod tests {
             }),
         );
         // (= 5)
-        let expr = Expr::List(vec![
-            Expr::Symbol("=".to_string()),
-            Expr::Number(5.0),
-        ]);
+        let expr = Expr::List(vec![Expr::Symbol("=".to_string()), Expr::Number(5.0)]);
         assert_eq!(
             eval(&expr, env),
             Err(LispError::ArityMismatch(
@@ -1060,16 +1050,13 @@ mod tests {
         let expr = Expr::List(vec![Expr::Symbol("*".to_string())]);
         assert_eq!(eval(&expr, env), Ok(Expr::Number(1.0)));
     }
-    
+
     #[test]
     fn test_native_multiply_one_arg() {
         init_test_logging();
         let env = Environment::new_with_prelude();
         // (* 5)
-        let expr = Expr::List(vec![
-            Expr::Symbol("*".to_string()),
-            Expr::Number(5.0),
-        ]);
+        let expr = Expr::List(vec![Expr::Symbol("*".to_string()), Expr::Number(5.0)]);
         assert_eq!(eval(&expr, env), Ok(Expr::Number(5.0)));
     }
 
