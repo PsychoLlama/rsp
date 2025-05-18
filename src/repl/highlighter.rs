@@ -11,8 +11,7 @@ use rustyline::error::ReadlineError; // Needed for manual Completer/Validator im
 
 // Removed unused: use rustyline_derive::Helper as RustylineHelperMacro;
 use std::borrow::Cow::{self, Owned};
-use rustyline::style::{Style, Color, StyleModifier}; // Use StyleModifier from style module
-use rustyline::styled_text::StyledText;             // StyledText from styled_text module
+use owo_colors::{OwoColorize, Style as OwoStyle}; // For ANSI styling
 use rustyline::Helper as RustylineHelperTrait; // Helper trait is at the root
 
 lazy_static! {
@@ -38,56 +37,72 @@ pub struct LispHighlighter {
 }
 
 impl Highlighter for LispHighlighter {
-    fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, StyledText> {
-        let mut styled_text = StyledText::new();
+    fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
+        // _pos is for cursor position, not used in this basic ANSI highlighter directly
+        // but could be used for cursor-context highlighting.
+        let mut highlighted_line = String::with_capacity(line.len() * 2); // Pre-allocate
         let mut current_pos = 0;
 
-        // Token definitions with style
-        // Order can be important if regexes overlap significantly without careful construction.
-        // A more robust tokenizer would produce discrete tokens first.
-        // This approach iterates and applies styles based on first match at current_pos.
-        let tokens_with_styles = [
-            (&*STRING_RE, Style::new().fg_color(Some(Color::Green))),
-            (&*COMMENT_RE, Style::new().fg_color(Some(Color::DarkGrey))),
-            (&*NUMBER_RE, Style::new().fg_color(Some(Color::Magenta))),
-            (&*KEYWORD_RE, Style::new().fg_color(Some(Color::Cyan)).modifier(StyleModifier::BOLD)), // Use StyleModifier
-            (&*BOOLEAN_NIL_RE, Style::new().fg_color(Some(Color::Yellow))),
-            (&*PARENS_RE, Style::new().fg_color(Some(Color::Blue))),
-            // Symbol RE is broad, so it's last.
-            // It might incorrectly style parts of other tokens if not careful,
-            // but rustyline processes char by char with `highlight_char`.
-            // However, this `highlight` method gives more control.
+        // Define owo-colors styles
+        let string_style = OwoStyle::new().green();
+        let comment_style = OwoStyle::new().truecolor(128, 128, 128); // DarkGrey
+        let number_style = OwoStyle::new().magenta();
+        let keyword_style = OwoStyle::new().cyan().bold();
+        let boolean_nil_style = OwoStyle::new().yellow();
+        let parens_style = OwoStyle::new().blue();
+        // Default/Symbol style can be plain or a subtle color
+        // let symbol_style = OwoStyle::new().white(); // Example
+
+        // Order matters for matching.
+        let tokens_regexes = [
+            (&*STRING_RE, Some(string_style)),
+            (&*COMMENT_RE, Some(comment_style)),
+            (&*NUMBER_RE, Some(number_style)),
+            (&*KEYWORD_RE, Some(keyword_style)),
+            (&*BOOLEAN_NIL_RE, Some(boolean_nil_style)),
+            (&*PARENS_RE, Some(parens_style)),
+            // SYMBOL_RE is very broad, handle it as a fallback or make it more specific.
+            // For now, unstyled parts will be symbols or plain.
         ];
 
+        // A more robust approach would be to find all non-overlapping matches first,
+        // sort them by start position, and then fill in the gaps.
+        // This simplified loop processes from left to right.
         while current_pos < line.len() {
-            let mut found_match = false;
-            for (regex, style) in &tokens_with_styles {
+            let mut found_match_at_current_pos = false;
+            for (regex, style_opt) in &tokens_regexes {
                 if let Some(mat) = regex.find_at(line, current_pos) {
-                    if mat.start() == current_pos { // Ensure match is at the current position
-                        // Append unstyled text before the match if any (should not happen if mat.start() == current_pos)
-                        // styled_text.append(StyledText::plain(&line[current_pos..mat.start()]));
-                        styled_text.append(StyledText::styled(line[mat.start()..mat.end()].to_string(), *style));
+                    if mat.start() == current_pos {
+                        // Append part before match (should be empty if current_pos is at mat.start())
+                        // highlighted_line.push_str(&line[current_pos..mat.start()]);
+                        
+                        let matched_text = &line[mat.start()..mat.end()];
+                        if let Some(style) = style_opt {
+                            highlighted_line.push_str(&matched_text.style(*style).to_string());
+                        } else {
+                            highlighted_line.push_str(matched_text); // No style / default
+                        }
                         current_pos = mat.end();
-                        found_match = true;
+                        found_match_at_current_pos = true;
                         break;
                     }
                 }
             }
 
-            if !found_match {
-                // No specific token found, append as plain text (or symbol style)
-                // For simplicity, advance by one char and style it as plain or default symbol.
-                // A more sophisticated approach would be to find the next match of *any* token.
-                let end_of_plain = line[current_pos..].chars().next().map_or(line.len(), |c| current_pos + c.len_utf8());
-                styled_text.append(StyledText::plain(line[current_pos..end_of_plain].to_string()));
-                current_pos = end_of_plain;
+            if !found_match_at_current_pos {
+                // No token matched at current_pos. Advance by one char, append as plain.
+                // This part handles symbols or any other text not caught by specific regexes.
+                let mut char_end = current_pos;
+                if let Some((idx, _)) = line[current_pos..].char_indices().nth(1) {
+                    char_end = current_pos + idx;
+                } else {
+                    char_end = line.len();
+                }
+                highlighted_line.push_str(&line[current_pos..char_end]);
+                current_pos = char_end;
             }
         }
-        // The MatchingBracketHighlighter logic is complex to merge here directly.
-        // It's simpler to rely on its effect via highlight_char if that's sufficient,
-        // or to implement custom bracket matching within this loop if needed.
-        // For now, we return the syntax highlighting from the regexes.
-        Owned(styled_text)
+        Owned(highlighted_line)
     }
 
     fn highlight_char(&self, line: &str, pos: usize, _forced: bool) -> bool {
@@ -136,7 +151,7 @@ impl Hinter for ReplHelper {
 }
 
 impl Highlighter for ReplHelper {
-    fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, StyledText> {
+    fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, str> { // Return type changed
         self.highlighter.highlight(line, pos)
     }
 
