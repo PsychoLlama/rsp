@@ -1,6 +1,7 @@
 mod cli;
 mod engine;
 mod logging;
+mod repl; // Added repl module declaration
 
 use anyhow::Result;
 use clap::Parser;
