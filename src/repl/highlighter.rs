@@ -9,9 +9,11 @@ use rustyline::validate::Validator; // Needed for manual Helper impl
 use rustyline::Context; // Needed for manual Completer/Hinter impl
 use rustyline::error::ReadlineError; // Needed for manual Completer/Validator impl
 
-use rustyline_derive::Helper as RustylineHelperMacro; // Keep for now, but we'll do manual impl
+// Removed unused: use rustyline_derive::Helper as RustylineHelperMacro;
 use std::borrow::Cow::{self, Owned};
-use rustyline::{Style, Color, Modifier, StyledText, Helper as RustylineHelperTrait}; // Corrected imports
+use rustyline::style::{Style, Color, Modifier}; // Corrected import path
+use rustyline::styled_text::StyledText;      // Corrected import path
+use rustyline::Helper as RustylineHelperTrait; // Helper trait is at the root
 
 lazy_static! {
     // Order matters for matching. More specific regexes should come first if ambiguity exists.
@@ -113,7 +115,7 @@ impl ReplHelper {
 }
 
 impl Completer for ReplHelper {
-    type Candidate = CompletionCandidate; // Use the aliased Candidate
+    type Candidate = Candidate; // Use the imported struct rustyline::completion::Candidate
 
     fn complete(
         &self,
