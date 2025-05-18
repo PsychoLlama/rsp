@@ -65,7 +65,7 @@ fn main() -> Result<()> {
                                 Err(e) => {
                                     info!(evaluation_error = %e, "Evaluation error from string expression");
                                     eprintln!("Evaluation Error: {}", e);
-                                    last_result = None; // Clear last result on error
+                                    // last_result = None; // Assignment removed as function returns immediately
                                     return Ok(()); // Stop on first evaluation error
                                 }
                             }
