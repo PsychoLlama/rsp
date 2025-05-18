@@ -377,7 +377,7 @@ pub fn native_println(args: Vec<Expr>) -> Result<Expr, LispError> {
     trace!("Executing native 'println' function");
     if args.is_empty() {
         println!(); // Print a newline if no arguments
-        return Ok(Expr::Nil);
+        return Ok(Expr::String("".to_string())); // Return empty string
     }
 
     let format_str_expr = &args[0];
@@ -413,7 +413,7 @@ pub fn native_println(args: Vec<Expr>) -> Result<Expr, LispError> {
     // they are just ignored. More robust formatters might error or have different behavior.
 
     println!("{}", result_string);
-    Ok(Expr::Nil) // println typically returns Nil or an equivalent
+    Ok(Expr::String(result_string)) // Return the formatted string
 }
 
 
@@ -1277,8 +1277,8 @@ mod tests {
     #[test]
     fn test_native_println_no_args() {
         init_test_logging();
-        // (println) - should just print a newline and return Nil
-        assert_eq!(native_println(vec![]), Ok(Expr::Nil));
+        // (println) - should print a newline and return ""
+        assert_eq!(native_println(vec![]), Ok(Expr::String("".to_string())));
     }
 
     #[test]
@@ -1286,7 +1286,7 @@ mod tests {
         init_test_logging();
         // (println "hello")
         let args = vec![Expr::String("hello".to_string())];
-        assert_eq!(native_println(args), Ok(Expr::Nil));
+        assert_eq!(native_println(args), Ok(Expr::String("hello".to_string())));
         // Expected output to stdout: "hello"
     }
 
@@ -1298,7 +1298,7 @@ mod tests {
             Expr::String("Hello, %s!".to_string()),
             Expr::String("world".to_string()),
         ];
-        assert_eq!(native_println(args), Ok(Expr::Nil));
+        assert_eq!(native_println(args), Ok(Expr::String("Hello, world!".to_string())));
         // Expected output to stdout: "Hello, world!"
     }
 
@@ -1311,7 +1311,7 @@ mod tests {
             Expr::String("Alice".to_string()),
             Expr::Number(30.0),
         ];
-        assert_eq!(native_println(args), Ok(Expr::Nil));
+        assert_eq!(native_println(args), Ok(Expr::String("Name: Alice, Age: 30".to_string())));
         // Expected output to stdout: "Name: Alice, Age: 30"
     }
 
@@ -1323,7 +1323,7 @@ mod tests {
             Expr::String("Hello, %s %s".to_string()),
             Expr::String("world".to_string()),
         ];
-        assert_eq!(native_println(args), Ok(Expr::Nil));
+        assert_eq!(native_println(args), Ok(Expr::String("Hello, world %s".to_string())));
         // Expected output to stdout: "Hello, world %s" (second %s is literal)
     }
 
@@ -1336,7 +1336,7 @@ mod tests {
             Expr::String("world".to_string()),
             Expr::String("extra".to_string()),
         ];
-        assert_eq!(native_println(args), Ok(Expr::Nil));
+        assert_eq!(native_println(args), Ok(Expr::String("Hello, world".to_string())));
         // Expected output to stdout: "Hello, world" (extra arg ignored)
     }
 
@@ -1349,7 +1349,7 @@ mod tests {
             Expr::String("arg1".to_string()),
             Expr::String("arg2".to_string()),
         ];
-        assert_eq!(native_println(args), Ok(Expr::Nil));
+        assert_eq!(native_println(args), Ok(Expr::String("Just a string".to_string())));
         // Expected output to stdout: "Just a string"
     }
 
@@ -1379,7 +1379,7 @@ mod tests {
             Expr::Nil,
             Expr::List(vec![Expr::Number(1.0), Expr::Number(2.0)]),
         ];
-        assert_eq!(native_println(args), Ok(Expr::Nil));
+        assert_eq!(native_println(args), Ok(Expr::String("Sym: foo, Num: 123, Bool: true, Nil: nil, List: (1 2)".to_string())));
         // Expected output: "Sym: foo, Num: 123, Bool: true, Nil: nil, List: (1 2)"
     }
 }
