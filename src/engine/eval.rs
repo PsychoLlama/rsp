@@ -146,7 +146,7 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
 }
 
 /// Applies a function (Lisp or native) to a list of evaluated arguments.
-#[instrument(skip(func_expr_to_call, evaluated_args, calling_env), fields(func = ?func_expr_to_call, args = ?evaluated_args), ret, err)]
+#[instrument(skip(func_expr_to_call, evaluated_args, _calling_env), fields(func = ?func_expr_to_call, args = ?evaluated_args), ret, err)]
 fn apply(
     func_expr_to_call: Expr, // Renamed parameter for clarity
     evaluated_args: Vec<Expr>,
