@@ -122,14 +122,17 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
             break;
         }
         match parser::parse_expr(current_module_input) {
-            Ok((remaining, ast)) => {
-                if let Err(e) = main_eval(&ast, Rc::clone(&module_env)) {
-                    error!(module_path = %canonical_path.display(), error = %e, "Error evaluating expression in module");
-                    return Err(LispError::ModuleLoadError {
-                        path: canonical_path.clone(), // Changed here
-                        source: Box::new(e),
-                    });
+            Ok((remaining, ast_option)) => {
+                if let Some(ast) = ast_option {
+                    if let Err(e) = main_eval(&ast, Rc::clone(&module_env)) {
+                        error!(module_path = %canonical_path.display(), error = %e, "Error evaluating expression in module");
+                        return Err(LispError::ModuleLoadError {
+                            path: canonical_path.clone(),
+                            source: Box::new(e),
+                        });
+                    }
                 }
+                // If ast_option is None, it means a comment or whitespace was parsed, so just continue.
                 current_module_input = remaining;
             }
             Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
@@ -197,15 +200,26 @@ mod tests {
     // Helper to parse and evaluate a Lisp expression string containing `require`.
     // This uses `main_eval` because `require` is a special form handled by it.
     fn run_require_expr(lisp_code: &str, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
-        let (remaining, parsed_expr) = parser::parse_expr(lisp_code)
+        let (remaining, parsed_expr_option) = parser::parse_expr(lisp_code)
             .map_err(|e| LispError::Evaluation(format!("Test parse error: {}", e)))?;
+        
         if !remaining.is_empty() {
             return Err(LispError::Evaluation(format!(
-                "Unexpected remaining input in test: {}",
+                "Unexpected remaining input in test: '{}'", // Added quotes for clarity
                 remaining
             )));
         }
-        main_eval(&parsed_expr, env) // Use main_eval from crate::engine::eval
+
+        if let Some(parsed_expr) = parsed_expr_option {
+            main_eval(&parsed_expr, env) // Use main_eval from crate::engine::eval
+        } else {
+            // This case should ideally not be hit if lisp_code for require is always a valid expression.
+            // If `(require ...)` itself is the only content, parse_expr should yield Some.
+            // If lisp_code was e.g. "; just a comment", then this branch would be hit.
+            Err(LispError::Evaluation(
+                "No valid expression found in require test code".to_string(),
+            ))
+        }
     }
 
     #[test]
