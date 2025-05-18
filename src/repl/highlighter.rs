@@ -1,11 +1,16 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
-use rustyline::validate::{ValidationContext, ValidationResult, Validator};
-use rustyline::{Completer, CompletionCandidate, Helper, Hinter, History};
-use rustyline_derive::Helper as RustylineHelperMacro; // Ensure this derive is available or implement manually
-use std::borrow::Cow::{self, Borrowed, Owned};
-use rustyline::styled_text::{Style, StyledText};
+// Validator related imports are unused for now, ReplHelper derive will provide default.
+// use rustyline::validate::{ValidationContext, ValidationResult, Validator};
+use rustyline::completion::{Completer, CompletionCandidate};
+use rustyline::hint::Hinter;
+use rustyline::history::History;
+use rustyline::Helper as RustylineHelperTrait; // Alias for clarity if needed, or use directly
+use rustyline_derive::Helper as RustylineHelperMacro;
+use std::borrow::Cow::{self, Owned}; // Removed Borrowed as it's not used after fix
+use rustyline::style::{Style, Color, Modifier}; // Corrected import for Style, Color, Modifier
+use rustyline::styled_text::StyledText; // Corrected import for StyledText
 
 lazy_static! {
     // Order matters for matching. More specific regexes should come first if ambiguity exists.
@@ -39,12 +44,12 @@ impl Highlighter for LispHighlighter {
         // A more robust tokenizer would produce discrete tokens first.
         // This approach iterates and applies styles based on first match at current_pos.
         let tokens_with_styles = [
-            (&*STRING_RE, Style::new().fg_color(Some(rustyline::Color::Green))),
-            (&*COMMENT_RE, Style::new().fg_color(Some(rustyline::Color::DarkGrey))),
-            (&*NUMBER_RE, Style::new().fg_color(Some(rustyline::Color::Magenta))),
-            (&*KEYWORD_RE, Style::new().fg_color(Some(rustyline::Color::Cyan)).modifier(rustyline::Modifier::BOLD)),
-            (&*BOOLEAN_NIL_RE, Style::new().fg_color(Some(rustyline::Color::Yellow))),
-            (&*PARENS_RE, Style::new().fg_color(Some(rustyline::Color::Blue))),
+            (&*STRING_RE, Style::new().fg_color(Some(Color::Green))),
+            (&*COMMENT_RE, Style::new().fg_color(Some(Color::DarkGrey))),
+            (&*NUMBER_RE, Style::new().fg_color(Some(Color::Magenta))),
+            (&*KEYWORD_RE, Style::new().fg_color(Some(Color::Cyan)).modifier(Modifier::BOLD)),
+            (&*BOOLEAN_NIL_RE, Style::new().fg_color(Some(Color::Yellow))),
+            (&*PARENS_RE, Style::new().fg_color(Some(Color::Blue))),
             // Symbol RE is broad, so it's last.
             // It might incorrectly style parts of other tokens if not careful,
             // but rustyline processes char by char with `highlight_char`.
@@ -75,48 +80,35 @@ impl Highlighter for LispHighlighter {
                 current_pos = end_of_plain;
             }
         }
-        
-        // Apply matching bracket highlighting after custom syntax highlighting
-        let styled_text_cow = self.matching_bracket_highlighter.highlight(Borrowed(&styled_text), pos);
-        // The above line is problematic because MatchingBracketHighlighter expects &str, not &StyledText.
-        // We need to apply matching bracket highlighting on the original line and merge.
-        // For now, let's just return our styled_text.
-        // A proper solution would involve more complex logic to merge styles or use highlight_char.
-        // Rustyline's design here can be tricky.
-        // A simpler way:
-        // self.matching_bracket_highlighter.highlight(line, pos) // This would be if LispHighlighter *only* did matching brackets.
-
-        // For now, we'll just return our syntax highlighting.
-        // To integrate MatchingBracketHighlighter, one might need to reimplement its logic
-        // or adjust how StyledText is built.
-        // A common pattern is to let the MatchingBracketHighlighter run first, then apply syntax styles.
-        // Or, if the Highlighter trait implies full control, one has to do it all.
-
-        // Let's try to use highlight_char for bracket matching as a fallback or addition.
-        // This is not how it's typically done. The main `highlight` method is expected to do all.
-        // The `MatchingBracketHighlighter` is a self-contained highlighter.
-        // We might need to choose one or the other, or combine their logic manually.
-
-        // Simplest for now: return the syntax-highlighted text.
-        // Bracket matching can be added by enhancing this LispHighlighter.
+        // The MatchingBracketHighlighter logic is complex to merge here directly.
+        // It's simpler to rely on its effect via highlight_char if that's sufficient,
+        // or to implement custom bracket matching within this loop if needed.
+        // For now, we return the syntax highlighting from the regexes.
         Owned(styled_text)
     }
 
-    fn highlight_char(&self, line: &str, pos: usize,_forced: bool) -> bool {
+    fn highlight_char(&self, line: &str, pos: usize, _forced: bool) -> bool {
         // Delegate to MatchingBracketHighlighter for char-level highlighting (e.g., cursor on bracket)
         self.matching_bracket_highlighter.highlight_char(line, pos, _forced)
     }
 }
 
 
-// Implement Helper, Completer, Hinter, Validator for ReplHelper
-// We can use the derive macro if available and configured, or implement manually.
-// For manual implementation:
-#[derive(RustylineHelperMacro)] // This derive simplifies things. If not working, manual impl below.
+// The RustylineHelperMacro derive should provide Completer, Hinter, Validator defaults.
+// We only need to explicitly implement Highlighter for ReplHelper if the derive doesn't
+// automatically pick up the highlighter field.
+// However, the common pattern with rustyline-derive is that `#[derive(Helper)]`
+// expects the struct to have fields named `completer`, `hinter`, `highlighter`, `validator`
+// or it provides defaults if these fields are not present and the derive handles it.
+// Let's ensure ReplHelper correctly uses LispHighlighter.
+
+#[derive(RustylineHelperMacro)]
 pub struct ReplHelper {
     highlighter: LispHighlighter,
-    // validator: MatchingBracketValidator, // If we want to validate brackets
-    // hinter: HistoryHinter, // Example hinter
+    // If we wanted to customize other parts, we'd add fields like:
+    // completer: MyCompleter,
+    // hinter: MyHinter,
+    // validator: MyValidator,
 }
 
 impl ReplHelper {
@@ -127,40 +119,11 @@ impl ReplHelper {
     }
 }
 
-// Manual implementation if derive macro is not used or for more control:
-/*
-impl Completer for ReplHelper {
-    type Candidate = String; // Or a more complex type if needed
-    // fn complete(&self, line: &str, pos: usize, ctx: &Context<'_>) -> Result<(usize, Vec<Self::Candidate>), ReadlineError> {
-    //     Ok((0, Vec::new())) // No-op completion
-    // }
-}
-
-impl Hinter for ReplHelper {
-    type Hint = String;
-    // fn hint(&self, line: &str, pos: usize, ctx: &Context<'_>) -> Option<Self::Hint> {
-    //     None // No-op hinter
-    // }
-}
-
-impl Highlighter for ReplHelper {
-    fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, StyledText> {
-        self.highlighter.highlight(line, pos)
-    }
-
-    fn highlight_char(&self, line: &str, pos: usize, forced: bool) -> bool {
-        self.highlighter.highlight_char(line, pos, forced)
-    }
-}
-
-impl Validator for ReplHelper {
-    // fn validate(&self, ctx: &mut ValidationContext) -> Result<ValidationResult, ReadlineError> {
-    //     Ok(ValidationResult::Valid(None)) // No-op validation
-    // }
-}
-
-impl Helper for ReplHelper {} // Marker trait
-*/
+// The `rustyline-derive::Helper` macro should generate the necessary
+// trait implementations for `Completer`, `Hinter`, `Validator` (as no-ops or defaults)
+// and delegate `Highlighter` calls to the `highlighter` field if it exists.
+// If not, we would need to implement them manually as shown in the commented block.
+// For now, we rely on the derive macro.
 
 impl Default for ReplHelper {
     fn default() -> Self {
