@@ -397,11 +397,10 @@ pub fn native_multiply(args: Vec<Expr>) -> Result<Expr, LispError> {
 
 // Future built-in functions will go here.
 
-#[tracing::instrument(skip(args), ret, err)]
-pub fn native_log_info(args: Vec<Expr>) -> Result<Expr, LispError> {
-    trace!("Executing native 'log/info' function");
+// Helper function for log/info and log/error
+fn _format_log_message_and_write(args: Vec<Expr>, writer: fn(&str)) -> Result<Expr, LispError> {
     if args.is_empty() {
-        println!();
+        writer(""); // Print a newline (or empty string, println! adds newline)
         return Ok(Expr::String("".to_string()));
     }
 
@@ -412,7 +411,7 @@ pub fn native_log_info(args: Vec<Expr>) -> Result<Expr, LispError> {
             // If the first arg isn't a string, treat all args as items to be space-joined.
             let output: Vec<String> = args.iter().map(|arg| arg.to_lisp_string()).collect();
             let result_string = output.join(" ");
-            println!("{}", result_string);
+            writer(&result_string);
             return Ok(Expr::String(result_string));
         }
     };
@@ -434,49 +433,20 @@ pub fn native_log_info(args: Vec<Expr>) -> Result<Expr, LispError> {
     }
     result_string.push_str(&format_str[last_pos..]);
 
-    println!("{}", result_string);
+    writer(&result_string);
     Ok(Expr::String(result_string))
+}
+
+#[tracing::instrument(skip(args), ret, err)]
+pub fn native_log_info(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native 'log/info' function");
+    _format_log_message_and_write(args, |s| println!("{}", s))
 }
 
 #[tracing::instrument(skip(args), ret, err)]
 pub fn native_log_error(args: Vec<Expr>) -> Result<Expr, LispError> {
     trace!("Executing native 'log/error' function");
-    if args.is_empty() {
-        eprintln!();
-        return Ok(Expr::String("".to_string()));
-    }
-
-    let format_str_expr = &args[0];
-     let format_str = match format_str_expr {
-        Expr::String(s) => s,
-        _ => {
-            // If the first arg isn't a string, treat all args as items to be space-joined.
-            let output: Vec<String> = args.iter().map(|arg| arg.to_lisp_string()).collect();
-            let result_string = output.join(" ");
-            eprintln!("{}", result_string);
-            return Ok(Expr::String(result_string));
-        }
-    };
-
-    let mut arg_iter = args.iter().skip(1);
-    let mut result_string = String::new();
-    let mut last_pos = 0;
-
-    while let Some(percent_s_pos) = format_str[last_pos..].find("%s") {
-        let current_segment_start = last_pos + percent_s_pos;
-        result_string.push_str(&format_str[last_pos..current_segment_start]);
-
-        if let Some(arg_to_print) = arg_iter.next() {
-            result_string.push_str(&arg_to_print.to_lisp_string());
-        } else {
-            result_string.push_str("%s"); // Not enough args, append %s literally
-        }
-        last_pos = current_segment_start + 2; // Move past "%s"
-    }
-    result_string.push_str(&format_str[last_pos..]);
-
-    eprintln!("{}", result_string); // Print to stderr
-    Ok(Expr::String(result_string))
+    _format_log_message_and_write(args, |s| eprintln!("{}", s))
 }
 
 #[cfg(test)]
