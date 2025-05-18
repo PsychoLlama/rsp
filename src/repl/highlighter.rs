@@ -11,8 +11,7 @@ use rustyline::error::ReadlineError; // Needed for manual Completer/Validator im
 
 // Removed unused: use rustyline_derive::Helper as RustylineHelperMacro;
 use std::borrow::Cow::{self, Owned};
-use rustyline::style::{Style, Color, Modifier}; // Items are in rustyline::style
-use rustyline::styled_text::StyledText;      // Item is in rustyline::styled_text
+use rustyline::{Style, Color, Modifier, StyledText}; // Reverted: These are at the root
 use rustyline::Helper as RustylineHelperTrait; // Helper trait is at the root
 
 lazy_static! {
