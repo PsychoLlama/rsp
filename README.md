@@ -2,7 +2,7 @@
 
 **This project is an experiment in AI-assisted development, not an attempt to create a production-ready Lisp interpreter.** Its primary goal is to push the capabilities of AI models, specifically Google's Gemini 2.5 Pro, by tasking them with a complex, iterative software engineering challenge: designing and implementing a programming language.
 
-**100% of the code in this repository, including the language design, interpreter, and all features, was written by the AI** through interaction with [Aider](https://aider.chat/). This README file itself is also AI-generated. The project aims to explore the current state of AI-assisted development.
+**100% of the code in this repository, interpreter, and all features, was written by the AI** through interaction with [Aider](https://aider.chat/). This README file itself is also AI-generated. The project aims to explore the current state of AI-assisted development.
 
 ## Language Features
 
