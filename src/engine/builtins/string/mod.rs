@@ -170,8 +170,8 @@ mod tests {
     // Helper to evaluate a Lisp string in an environment
     fn eval_str(code: &str, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
         let parse_result = parse_expr(code);
-        let (remaining, parsed_expr) = match parse_result {
-            Ok((rem, expr)) => (rem, expr),
+        let (remaining, parsed_expr_option) = match parse_result {
+            Ok((rem, expr_opt)) => (rem, expr_opt),
             Err(e) => panic!("Test parse error for code '{}': {}", code, e),
         };
 
@@ -181,7 +181,14 @@ mod tests {
                 code, remaining
             );
         }
-        eval(&parsed_expr, env)
+
+        if let Some(parsed_expr) = parsed_expr_option {
+            eval(&parsed_expr, env)
+        } else {
+            // This case should ideally not happen in tests if the test code is a valid expression.
+            // If it's empty or only comments, parse_expr would return None.
+            panic!("No valid expression parsed from test code '{}'", code);
+        }
     }
 
     // Helper to create an environment where string functions are directly callable
