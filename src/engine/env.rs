@@ -41,8 +41,8 @@ impl Environment {
 
         const MATH_FUNCTION_NAMES: &[&str] = &["+", "=", "*"];
         const LOG_FUNCTION_NAMES_MAP: &[(&str, crate::engine::ast::NativeFn)] = &[
-            ("info", crate::engine::builtins::native_log_info),
-            ("error", crate::engine::builtins::native_log_error),
+            ("info", crate::engine::builtins::log::native_log_info),
+            ("error", crate::engine::builtins::log::native_log_error),
         ];
 
         // Create the math module environment
