@@ -1,23 +1,12 @@
 use crate::engine::env::Environment;
 use rustyline::error::ReadlineError;
-use rustyline::history::DefaultHistory; // Corrected import path
+use rustyline::history::DefaultHistory;
 use rustyline::Editor;
 use std::cell::RefCell;
-use std::fs; // For creating directory
-use std::path::PathBuf;
 use std::rc::Rc;
-use tracing::{error, info, warn};
+use tracing::{info, warn}; // Removed 'error' as it's handled in history.rs
 
-const HISTORY_FILE_SUBDIR: &str = "rsp"; // Crate name
-const HISTORY_FILE_NAME: &str = "history.txt";
-
-fn get_history_path() -> Option<PathBuf> {
-    dirs::data_dir().or_else(dirs::config_dir).map(|mut path| {
-        path.push(HISTORY_FILE_SUBDIR);
-        path.push(HISTORY_FILE_NAME);
-        path
-    })
-}
+mod history; // Declare the new history module
 
 #[tracing::instrument(skip(env))]
 pub fn start_repl(env: Rc<RefCell<Environment>>) -> anyhow::Result<()> {
@@ -25,38 +14,12 @@ pub fn start_repl(env: Rc<RefCell<Environment>>) -> anyhow::Result<()> {
     let mut rl = Editor::<(), DefaultHistory>::new()?;
     let mut line_number = 1;
 
-    let history_path_opt = get_history_path();
+    let history_path_opt = history::get_history_path();
 
     if let Some(ref history_path) = history_path_opt {
-        if let Some(parent_dir) = history_path.parent() {
-            if !parent_dir.exists() {
-                if let Err(e) = fs::create_dir_all(parent_dir) {
-                    warn!(
-                        "Failed to create history directory {}: {}",
-                        parent_dir.display(),
-                        e
-                    );
-                }
-            }
-        }
-        if history_path.exists() {
-            if let Err(err) = rl.load_history(history_path) {
-                warn!(
-                    "Could not load history from {}: {}",
-                    history_path.display(),
-                    err
-                );
-            } else {
-                info!("Loaded history from {}", history_path.display());
-            }
-        } else {
-            info!(
-                "History file {} does not exist. Will create on exit.",
-                history_path.display()
-            );
-        }
+        history::load_history_from_path(&mut rl, history_path);
     } else {
-        warn!("Could not determine history file path. History will not be saved.");
+        warn!("Could not determine history file path. History will not be saved or loaded.");
     }
 
     loop {
@@ -120,15 +83,8 @@ pub fn start_repl(env: Rc<RefCell<Environment>>) -> anyhow::Result<()> {
     }
 
     if let Some(ref history_path) = history_path_opt {
-        if let Err(err) = rl.save_history(history_path) {
-            error!(
-                "Could not save history to {}: {}",
-                history_path.display(),
-                err
-            );
-        } else {
-            info!("Saved history to {}", history_path.display());
-        }
+        history::save_history_to_path(&mut rl, history_path);
     }
+    // The warning about not being able to save is handled when history_path_opt is None earlier.
     Ok(())
 }
