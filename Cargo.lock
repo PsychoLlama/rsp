@@ -264,6 +264,7 @@ dependencies = [
  "anyhow",
  "clap",
  "nom",
+ "once_cell",
  "thiserror",
  "tracing",
  "tracing-subscriber",
