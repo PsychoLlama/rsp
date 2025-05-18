@@ -88,7 +88,7 @@ fn main() -> Result<()> {
                                             return Ok(()); // Stop on first evaluation error
                                         }
                                     }
-                                    current_input = remaining;
+                                    current_input = remaining; // Moved inside the Ok arm
                                 }
                                 Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                                     if !current_input.is_empty() {
