@@ -98,11 +98,13 @@ fn native_string_trim(args: Vec<Expr>) -> Result<Expr, LispError> {
 pub fn create_string_module() -> Expr {
     trace!("Creating string module");
     let string_env_rc = Environment::new(); // Modules have their own environment
-    let mut string_env_borrowed = string_env_rc.borrow_mut();
-
-    let functions_to_define = HashMap::from([
-        (
-            "concat".to_string(), // Name within the module
+    
+    // Scope the mutable borrow so it's dropped before string_env_rc is moved
+    {
+        let mut string_env_borrowed = string_env_rc.borrow_mut();
+        let functions_to_define = HashMap::from([
+            (
+                "concat".to_string(), // Name within the module
             Expr::NativeFunction(NativeFunction {
                 name: "string.concat".to_string(), // Unique name for debugging
                 func: native_string_concat,
@@ -146,12 +148,13 @@ pub fn create_string_module() -> Expr {
     ]);
 
     for (name, func_expr) in functions_to_define {
-        string_env_borrowed.define(name, func_expr);
-    }
+            string_env_borrowed.define(name, func_expr);
+        }
+    } // string_env_borrowed is dropped here
 
     Expr::Module(LispModule {
         path: PathBuf::from("builtin:string"), // Conventional path for built-in modules
-        env: string_env_rc,
+        env: string_env_rc, // Now string_env_rc can be moved
     })
 }
 
@@ -164,13 +167,17 @@ mod tests {
 
     // Helper to evaluate a Lisp string in an environment
     fn eval_str(code: &str, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
-        let (remaining, parsed_expr) = parse_expr(code)
-            .map_err(|e| LispError::ParseError(e.to_string()))?;
+        let parse_result = parse_expr(code);
+        let (remaining, parsed_expr) = match parse_result {
+            Ok((rem, expr)) => (rem, expr),
+            Err(e) => panic!("Test parse error for code '{}': {}", code, e),
+        };
+
         if !remaining.is_empty() {
-            return Err(LispError::ParseError(format!(
-                "Unexpected remaining input: {}",
-                remaining
-            )));
+            panic!(
+                "Unexpected remaining input after parsing in test for code '{}': {}",
+                code, remaining
+            );
         }
         eval(&parsed_expr, env)
     }
