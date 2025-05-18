@@ -863,7 +863,7 @@ mod tests {
     test_comparison_fn!(test_native_greater_than_or_equal_true_greater, ">=", native_greater_than_or_equal, 5.0, 2.0, true);
     test_comparison_fn!(test_native_greater_than_or_equal_true_equal, ">=", native_greater_than_or_equal, 5.0, 5.0, true);
     test_comparison_fn!(test_native_greater_than_or_equal_false_less, ">=", native_greater_than_or_equal, 2.0, 5.0, false);
-    test_comparison_fn!(test_native_greater_than_or_equal_type_error, ">=", native_greater_than_or_equal, 5.0, Expr::Symbol("sym".to_string()), expected_err_found: "Symbol(\"sym\")");
+    test_comparison_fn!(test_native_greater_than_or_equal_type_error, ">=", native_greater_than_or_equal, 5.0, Expr::List(vec![Expr::Symbol("quote".to_string()), Expr::Symbol("sym".to_string())]), expected_err_found: "Symbol(\"sym\")");
     test_comparison_fn!(test_native_greater_than_or_equal_arity_too_few, ">=", native_greater_than_or_equal, arity_args: [2.0], expected_len: 1);
     test_comparison_fn!(test_native_greater_than_or_equal_arity_too_many, ">=", native_greater_than_or_equal, arity_args: [2.0, 3.0, 4.0], expected_len: 3);
 }
