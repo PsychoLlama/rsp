@@ -193,10 +193,10 @@ fn apply(
             (native_fn.func)(evaluated_args)
         }
         _ => {
-            error!(evaluated_to = ?func_expr, "Attempted to call a non-function or non-native-function expression");
+            error!(evaluated_to = ?func_expr_to_call, "Attempted to call a non-function or non-native-function expression");
             Err(LispError::NotAFunction(format!(
                 "Expected a Lisp function or a native function, but found: {:?}",
-                func_expr
+                func_expr_to_call
             )))
         }
     }
