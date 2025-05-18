@@ -1,7 +1,7 @@
-pub mod math;
 pub mod log;
+pub mod math;
 pub mod special_forms;
-    
+
 use crate::engine::ast::Expr;
 // LispFunction is not used directly here anymore
 use crate::engine::env::Environment; // Still needed for native_module_ref tests if they use Environment::new
@@ -10,12 +10,12 @@ use crate::engine::eval::LispError;
 use std::cell::RefCell; // Keep if tests use it directly
 use std::rc::Rc; // Keep if tests use it directly
 use tracing::trace; // debug, error, instrument are not used at this level anymore
-    
+
 // Future built-in functions will go here.
-    
+
 // Native Rust functions callable from Lisp (the "prelude" functions)
 // Math functions (native_add, native_equals, native_multiply) are now in the math submodule.
-    
+
 #[tracing::instrument(skip(args), ret, err)]
 pub fn native_module_ref(args: Vec<Expr>) -> Result<Expr, LispError> {
     trace!("Executing native 'module-ref' function");
@@ -60,7 +60,7 @@ pub fn native_module_ref(args: Vec<Expr>) -> Result<Expr, LispError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{native_module_ref}; // Updated imports
+    use super::native_module_ref; // Updated imports
     use crate::engine::ast::{Expr, LispFunction, LispModule, NativeFunction}; // Added NativeFunction & LispModule
     use crate::engine::env::Environment;
     use crate::engine::eval::{LispError, eval}; // Need main eval for testing integration
