@@ -13,13 +13,10 @@ mod highlighter; // Declare the new highlighter module
 pub fn start_repl(env: Rc<RefCell<Environment>>) -> anyhow::Result<()> {
     info!("Starting REPL session with rustyline and syntax highlighting");
     
-    let helper = highlighter::ReplHelper::new();
-    // Create editor with helper and default history
+    // Editor::new() will use ReplHelper::default() due to trait bounds.
+    // The `let helper = ...` line was unused.
     let mut rl = Editor::<highlighter::ReplHelper, DefaultHistory>::new()?;
-    // It seems Editor::new() will use H::default() and I::default().
-    // If ReplHelper implements Default, this should work.
-    // Alternatively, use `Editor::with_config_and_helper_and_history` if more control is needed.
-    // For now, assuming ReplHelper::default() is suitable.
+    rl.set_helper(Some(highlighter::ReplHelper::new())); // Explicitly set the helper
 
     let mut line_number = 1;
 

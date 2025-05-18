@@ -1,16 +1,17 @@
 use lazy_static::lazy_static;
 use regex::Regex;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
-// Validator related imports are unused for now, ReplHelper derive will provide default.
-// use rustyline::validate::{ValidationContext, ValidationResult, Validator};
-use rustyline::completion::{Completer, CompletionCandidate};
+use rustyline::completion::{Completer, Candidate as CompletionCandidate}; // Corrected: Candidate
 use rustyline::hint::Hinter;
-use rustyline::history::History;
-use rustyline::Helper as RustylineHelperTrait; // Alias for clarity if needed, or use directly
-use rustyline_derive::Helper as RustylineHelperMacro;
-use std::borrow::Cow::{self, Owned}; // Removed Borrowed as it's not used after fix
-use rustyline::style::{Style, Color, Modifier}; // Corrected import for Style, Color, Modifier
-use rustyline::styled_text::StyledText; // Corrected import for StyledText
+// History trait is not directly used by ReplHelper, but by Editor.
+// use rustyline::history::History; 
+use rustyline::validate::Validator; // Needed for manual Helper impl
+use rustyline::Context; // Needed for manual Completer/Hinter impl
+use rustyline::error::ReadlineError; // Needed for manual Completer/Validator impl
+
+use rustyline_derive::Helper as RustylineHelperMacro; // Keep for now, but we'll do manual impl
+use std::borrow::Cow::{self, Owned};
+use rustyline::{Style, Color, Modifier, StyledText, Helper as RustylineHelperTrait}; // Corrected imports
 
 lazy_static! {
     // Order matters for matching. More specific regexes should come first if ambiguity exists.
@@ -94,21 +95,13 @@ impl Highlighter for LispHighlighter {
 }
 
 
-// The RustylineHelperMacro derive should provide Completer, Hinter, Validator defaults.
-// We only need to explicitly implement Highlighter for ReplHelper if the derive doesn't
-// automatically pick up the highlighter field.
-// However, the common pattern with rustyline-derive is that `#[derive(Helper)]`
-// expects the struct to have fields named `completer`, `hinter`, `highlighter`, `validator`
-// or it provides defaults if these fields are not present and the derive handles it.
-// Let's ensure ReplHelper correctly uses LispHighlighter.
-
-#[derive(RustylineHelperMacro)]
+// We will manually implement Helper and its supertraits.
+// The derive macro can be removed if we provide all implementations.
+// For now, let's remove it and implement manually.
+// #[derive(RustylineHelperMacro)] 
 pub struct ReplHelper {
     highlighter: LispHighlighter,
-    // If we wanted to customize other parts, we'd add fields like:
-    // completer: MyCompleter,
-    // hinter: MyHinter,
-    // validator: MyValidator,
+    // We could add fields for custom completer, hinter, validator if needed
 }
 
 impl ReplHelper {
@@ -119,11 +112,50 @@ impl ReplHelper {
     }
 }
 
-// The `rustyline-derive::Helper` macro should generate the necessary
-// trait implementations for `Completer`, `Hinter`, `Validator` (as no-ops or defaults)
-// and delegate `Highlighter` calls to the `highlighter` field if it exists.
-// If not, we would need to implement them manually as shown in the commented block.
-// For now, we rely on the derive macro.
+impl Completer for ReplHelper {
+    type Candidate = CompletionCandidate; // Use the aliased Candidate
+
+    fn complete(
+        &self,
+        _line: &str,
+        _pos: usize,
+        _ctx: &Context<'_>,
+    ) -> Result<(usize, Vec<Self::Candidate>), ReadlineError> {
+        Ok((0, Vec::new())) // No-op completion
+    }
+}
+
+impl Hinter for ReplHelper {
+    type Hint = String;
+
+    fn hint(&self, _line: &str, _pos: usize, _ctx: &Context<'_>) -> Option<Self::Hint> {
+        None // No-op hinter
+    }
+}
+
+impl Highlighter for ReplHelper {
+    fn highlight<'l>(&self, line: &'l str, pos: usize) -> Cow<'l, StyledText> {
+        self.highlighter.highlight(line, pos)
+    }
+
+    fn highlight_char(&self, line: &str, pos: usize, forced: bool) -> bool {
+        self.highlighter.highlight_char(line, pos, forced)
+    }
+}
+
+impl Validator for ReplHelper {
+    fn validate(
+        &self,
+        _ctx: &mut rustyline::validate::ValidationContext,
+    ) -> Result<rustyline::validate::ValidationResult, ReadlineError> {
+        Ok(rustyline::validate::ValidationResult::Valid(None)) // No-op validation
+    }
+}
+
+// This explicitly states that ReplHelper implements the RustylineHelperTrait marker trait.
+// The supertraits (Completer, Hinter, Highlighter, Validator) must be implemented.
+impl RustylineHelperTrait for ReplHelper {}
+
 
 impl Default for ReplHelper {
     fn default() -> Self {
