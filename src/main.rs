@@ -72,31 +72,34 @@ fn main() -> Result<()> {
                             current_input = remaining;
                         }
                         Err(e) => {
-                            let err_msg = match e {
+                            match e {
                                 nom::Err::Incomplete(_) => {
-                                    "Parsing incomplete: More input needed.".to_string()
+                                    let err_msg = "Parsing incomplete: More input needed.".to_string();
+                                    info!(parsing_error = %err_msg, input_at_error = %current_input, "Parsing failed in string expression");
+                                    eprintln!("{}", err_msg);
+                                    return Ok(()); // Stop
                                 }
-                                nom::Err::Error(inner_e) | nom::Err::Failure(inner_e) => {
-                                    // Check if the error occurred on an empty or whitespace-only remaining string.
-                                    // If so, it might not be a "real" error but just the end of input.
-                                    if current_input.trim().is_empty() && !expressions_evaluated {
-                                        // No valid expressions were found at all.
-                                        "Error: No valid expressions found in input string.".to_string()
-                                    } else if current_input.trim().is_empty() && expressions_evaluated {
-                                        // Successfully parsed some, now at the end. Not an error.
-                                        break; 
-                                    } else {
-                                        format!("Parsing Error: {:?}", inner_e)
+                                nom::Err::Error(inner_e) => {
+                                    // If we've evaluated expressions and the remaining input is empty/whitespace,
+                                    // this nom::Err::Error might be due to trying to parse nothing further.
+                                    // This is considered a successful end of multi-expression parsing.
+                                    if expressions_evaluated && current_input.trim().is_empty() {
+                                        break; // Successfully parsed all available expressions
                                     }
+                                    // Otherwise, it's a genuine parsing error on actual content.
+                                    let err_msg = format!("Parsing Error: {:?}", inner_e);
+                                    info!(parsing_error = %err_msg, input_at_error = %current_input, "Parsing failed in string expression");
+                                    eprintln!("{}", err_msg);
+                                    return Ok(()); // Stop
                                 }
-                            };
-                            // Only print error if it's not just the end of input after successful parses.
-                            if !(current_input.trim().is_empty() && expressions_evaluated && matches!(e, nom::Err::Error(_))) {
-                                info!(parsing_error = %err_msg, "Parsing failed in string expression");
-                                eprintln!("{}", err_msg);
-                                last_result = None; // Clear last result on error
+                                nom::Err::Failure(inner_e) => {
+                                    // Failures are always critical parsing errors.
+                                    let err_msg = format!("Parsing Error: {:?}", inner_e);
+                                    info!(parsing_error = %err_msg, input_at_error = %current_input, "Parsing failed critically in string expression");
+                                    eprintln!("{}", err_msg);
+                                    return Ok(()); // Stop
+                                }
                             }
-                            return Ok(()); // Stop on parsing error or end of input
                         }
                     }
                 }
