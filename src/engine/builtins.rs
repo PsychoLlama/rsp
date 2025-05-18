@@ -240,8 +240,7 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
             trace!(path = %canonical_path.display(), "Module found in cache");
             return Ok(module);
         }
-        }
-    } // Release lock
+    } // End of cache check block (borrow of MODULE_CACHE is released)
 
     // Load and evaluate module
     let content = match fs::read_to_string(&canonical_path) {
