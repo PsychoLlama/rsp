@@ -10,7 +10,7 @@ mod cli; // Add cli module
 mod test_utils;
 
 use anyhow::Result;
-// clap::Parser is no longer used directly here, it's in cli.rs
+use clap::Parser; // Import the Parser trait
 use tracing::info;
 
 // Import necessary items for parsing and evaluation
