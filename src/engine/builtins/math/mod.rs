@@ -73,6 +73,32 @@ pub fn native_multiply(args: Vec<Expr>) -> Result<Expr, LispError> {
     Ok(Expr::Number(product))
 }
 
+#[tracing::instrument(skip(args), ret, err)]
+pub fn native_subtract(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native '-' function");
+    if args.is_empty() {
+        let arity_error = LispError::ArityMismatch(
+            "Native '-' expects at least 1 argument, got 0".to_string(),
+        );
+        error!(error = %arity_error, "Arity error in native '-'");
+        return Err(arity_error);
+    }
+
+    let first_val = extract_number(&args[0], "-")?;
+
+    if args.len() == 1 {
+        // Negation: (- x)
+        return Ok(Expr::Number(-first_val));
+    }
+
+    // Subtraction: (- x y z ...)
+    let mut result = first_val;
+    for arg_expr in args.iter().skip(1) {
+        result -= extract_number(arg_expr, "-")?;
+    }
+    Ok(Expr::Number(result))
+}
+
 pub fn create_math_module() -> Expr {
     trace!("Creating math module");
     let math_env_rc = Environment::new();
@@ -96,6 +122,13 @@ pub fn create_math_module() -> Expr {
             Expr::NativeFunction(NativeFunction {
                 name: "*".to_string(),
                 func: native_multiply,
+            }),
+        ),
+        (
+            "-".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "-".to_string(),
+                func: native_subtract,
             }),
         ),
     ]);
@@ -409,6 +442,92 @@ mod tests {
             Expr::Number(2.0),
             Expr::Bool(true), // Not a number
         ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::TypeError {
+                expected: "Number".to_string(),
+                found: "Bool(true)".to_string()
+            })
+        );
+    }
+
+    // Tests for native_subtract
+    #[test]
+    fn test_native_subtract_simple() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (- 5 2)
+        let expr = Expr::List(vec![
+            Expr::Symbol("-".to_string()),
+            Expr::Number(5.0),
+            Expr::Number(2.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(3.0)));
+    }
+
+    #[test]
+    fn test_native_subtract_multiple_args() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (- 10 1 2 3)
+        let expr = Expr::List(vec![
+            Expr::Symbol("-".to_string()),
+            Expr::Number(10.0),
+            Expr::Number(1.0),
+            Expr::Number(2.0),
+            Expr::Number(3.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(4.0)));
+    }
+
+    #[test]
+    fn test_native_subtract_negation() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (- 5)
+        let expr = Expr::List(vec![Expr::Symbol("-".to_string()), Expr::Number(5.0)]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(-5.0)));
+    }
+
+    #[test]
+    fn test_native_subtract_no_args_error() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (-)
+        let expr = Expr::List(vec![Expr::Symbol("-".to_string())]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::ArityMismatch(
+                "Native '-' expects at least 1 argument, got 0".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_native_subtract_type_error() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (- 10 true)
+        let expr = Expr::List(vec![
+            Expr::Symbol("-".to_string()),
+            Expr::Number(10.0),
+            Expr::Bool(true), // Not a number
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::TypeError {
+                expected: "Number".to_string(),
+                found: "Bool(true)".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn test_native_subtract_type_error_negation() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (- true)
+        let expr = Expr::List(vec![Expr::Symbol("-".to_string()), Expr::Bool(true)]);
         assert_eq!(
             eval(&expr, env),
             Err(LispError::TypeError {
