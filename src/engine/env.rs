@@ -32,8 +32,6 @@ impl Environment {
 
         // Define prelude functions
         // Each tuple is (Lisp name, Rust function pointer)
-        // Define prelude functions
-        // Each tuple is (Lisp name, Rust function pointer)
         const PRELUDE_NATIVE_FUNCTIONS: &[(&str, crate::engine::ast::NativeFn)] = &[
             ("+", native_add),
             ("=", native_equals),
