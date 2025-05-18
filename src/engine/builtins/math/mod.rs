@@ -793,7 +793,7 @@ mod tests {
             }
         };
         // For type error tests
-        ($test_name:ident, $op_str:expr, $native_fn:ident, $lhs:expr, $rhs_expr:expr, expected_err_found:expr) => {
+        ($test_name:ident, $op_str:expr, $native_fn:ident, $lhs:expr, $rhs_expr:expr, expected_err_found: $expected_err_val:expr) => {
             #[test]
             fn $test_name() {
                 init_test_logging();
@@ -807,19 +807,19 @@ mod tests {
                     eval(&expr, env),
                     Err(LispError::TypeError {
                         expected: "Number".to_string(),
-                        found: expected_err_found.to_string()
+                        found: $expected_err_val.to_string()
                     })
                 );
             }
         };
         // For arity error tests
-        ($test_name:ident, $op_str:expr, $native_fn:ident, arity_args: $args:expr, expected_len:expr) => {
+        ($test_name:ident, $op_str:expr, $native_fn:ident, arity_args: $args_val:expr, expected_len: $len_val:expr) => {
             #[test]
             fn $test_name() {
                 init_test_logging();
                 let env = Environment::new_with_prelude();
                 let mut expr_args = vec![Expr::Symbol($op_str.to_string())];
-                for arg_val in $args {
+                for arg_val in $args_val { // Use $args_val here
                     expr_args.push(Expr::Number(arg_val));
                 }
                 let expr = Expr::List(expr_args);
@@ -828,7 +828,7 @@ mod tests {
                     Err(LispError::ArityMismatch(format!(
                         "Native '{}' expects exactly 2 arguments, got {}",
                         $op_str,
-                        expected_len
+                        $len_val // Use $len_val here
                     )))
                 );
             }
