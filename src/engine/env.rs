@@ -1,5 +1,8 @@
 use crate::engine::ast::{Expr, NativeFunction};
-use crate::engine::builtins::{native_add, native_equals, native_multiply}; // native_println removed from direct import
+use crate::engine::builtins::{
+    native_add, native_equals, native_log_error, native_log_info, native_module_ref,
+    native_multiply,
+};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
