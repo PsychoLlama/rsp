@@ -11,7 +11,8 @@ use rustyline::error::ReadlineError; // Needed for manual Completer/Validator im
 
 // Removed unused: use rustyline_derive::Helper as RustylineHelperMacro;
 use std::borrow::Cow::{self, Owned};
-use rustyline::{Style, Color, Modifier, StyledText}; // Corrected: These are at the root
+use rustyline::style::{Style, Color, Modifier}; // Items are in rustyline::style
+use rustyline::styled_text::StyledText;      // Item is in rustyline::styled_text
 use rustyline::Helper as RustylineHelperTrait; // Helper trait is at the root
 
 lazy_static! {
@@ -114,7 +115,8 @@ impl ReplHelper {
 }
 
 impl Completer for ReplHelper {
-    type Candidate = CompletionCandidate; // Use the alias from the import statement
+    // Use the alias CompletionCandidate which refers to rustyline::completion::Candidate struct
+    type Candidate = CompletionCandidate; 
 
     fn complete(
         &self,
