@@ -325,7 +325,7 @@
         use crate::engine::env::Environment;
         use crate::engine::eval::{eval, LispError}; // The main eval for setting up tests
         use crate::logging::init_test_logging;
-        use std::path::PathBuf; // For LispModule in tests, if needed directly
+        // PathBuf is not used directly in these tests.
         use std::rc::Rc;
     
         #[test]
