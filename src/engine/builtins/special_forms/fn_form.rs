@@ -69,7 +69,6 @@ pub fn eval_fn(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
 
 #[cfg(test)]
 mod tests {
-    use super::eval_fn;
     use crate::engine::ast::{Expr, LispFunction};
     use crate::engine::env::Environment;
     use crate::engine::eval::{eval, LispError};

@@ -45,12 +45,11 @@ pub fn eval_if(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
 
 #[cfg(test)]
 mod tests {
-    use super::eval_if;
     use crate::engine::ast::Expr;
     use crate::engine::env::Environment;
     use crate::engine::eval::{eval, LispError};
     use crate::logging::init_test_logging;
-    use std::rc::Rc;
+    // Rc is not directly used in these tests. Environment::new() returns Rc<RefCell<Environment>>.
 
     #[test]
     fn eval_if_true_condition() {

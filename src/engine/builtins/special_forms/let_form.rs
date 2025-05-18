@@ -53,7 +53,6 @@ pub fn eval_let(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Li
 
 #[cfg(test)]
 mod tests {
-    use super::eval_let;
     use crate::engine::ast::Expr;
     use crate::engine::env::Environment;
     use crate::engine::eval::{eval, LispError};

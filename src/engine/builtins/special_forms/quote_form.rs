@@ -20,12 +20,11 @@ pub fn eval_quote(args: &[Expr]) -> Result<Expr, LispError> {
 
 #[cfg(test)]
 mod tests {
-    use super::eval_quote;
     use crate::engine::ast::Expr;
     use crate::engine::env::Environment;
     use crate::engine::eval::{eval, LispError};
     use crate::logging::init_test_logging;
-    use std::rc::Rc;
+    // Rc is not directly used in these tests. Environment::new() returns Rc<RefCell<Environment>>.
 
     #[test]
     fn eval_quote_symbol() {
