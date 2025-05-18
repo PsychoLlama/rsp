@@ -500,6 +500,7 @@ mod tests {
     use crate::engine::env::Environment;
     use crate::engine::eval::{LispError, eval}; // Need main eval for testing integration
     use crate::logging::init_test_logging; // Use new logging setup
+    use std::path::PathBuf; // Import PathBuf for tests
     use std::rc::Rc; // For Environment
 
     #[test]
