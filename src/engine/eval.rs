@@ -32,8 +32,8 @@ pub enum LispError {
 pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
     trace!("Starting evaluation");
     match expr {
-        Expr::Number(_) | Expr::Function(_) | Expr::NativeFunction(_) | Expr::Bool(_) | Expr::Nil => {
-            debug!(env = ?env.borrow(), "Evaluating Number, Function, NativeFunction, Bool, or Nil: {:?}", expr);
+        Expr::Number(_) | Expr::Function(_) | Expr::NativeFunction(_) | Expr::Bool(_) | Expr::Nil | Expr::Module(_) => {
+            debug!(env = ?env.borrow(), "Evaluating Number, Function, NativeFunction, Bool, Nil, or Module: {:?}", expr);
             Ok(expr.clone()) // These types evaluate to themselves
         }
         Expr::Symbol(s) => {

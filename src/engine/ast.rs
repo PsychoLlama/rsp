@@ -37,8 +37,32 @@ pub enum Expr {
     NativeFunction(NativeFunction), // New variant for Rust functions
     Bool(bool),
     Nil,
+    Module(LispModule), // New variant for modules
     // Future extensions could include:
     // String(String),
+}
+
+#[derive(Clone)]
+pub struct LispModule {
+    pub path: String,
+    pub env: Rc<RefCell<Environment>>,
+}
+
+impl fmt::Debug for LispModule {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LispModule")
+            .field("path", &self.path)
+            .field("env", &"<module_env>") // Avoid printing the whole env
+            .finish()
+    }
+}
+
+// Modules are equal if their paths are the same.
+// This assumes paths are unique identifiers for modules.
+impl PartialEq for LispModule {
+    fn eq(&self, other: &Self) -> bool {
+        self.path == other.path
+    }
 }
 
 /// Type alias for a native Rust function that can be called from Lisp.

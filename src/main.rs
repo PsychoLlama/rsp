@@ -64,9 +64,10 @@ fn main() -> Result<()> {
                 info!(file_path = %file_path.display(), "Received file path for execution");
                 match fs::read_to_string(&file_path) {
                     Ok(content) => {
-                        let root_env = Environment::new_with_prelude();
-                        let mut last_eval_result: Option<crate::engine::ast::Expr> = None;
+                        // Create a dedicated environment for this file.
+                        let file_env = Environment::new_with_prelude();
                         let mut current_input: &str = &content;
+                        let mut expressions_evaluated = false;
 
                         loop {
                             current_input = current_input.trim_start();
@@ -76,13 +77,13 @@ fn main() -> Result<()> {
 
                             match parse_expr(current_input) {
                                 Ok((remaining, ast)) => {
+                                    expressions_evaluated = true;
                                     info!(parsed_ast = ?ast, "Successfully parsed expression from file");
-                                    match eval(&ast, Rc::clone(&root_env)) {
-                                        Ok(result) => {
-                                            last_eval_result = Some(result);
-                                        }
-                                        Err(e) => {
-                                            info!(evaluation_error = %e, "Evaluation error from file expression");
+                                    // Evaluate in the file's dedicated environment.
+                                    // We don't need to store the result of each eval,
+                                    // as the side effect is on file_env.
+                                    if let Err(e) = eval(&ast, Rc::clone(&file_env)) {
+                                        info!(evaluation_error = %e, "Evaluation error from file expression");
                                             eprintln!("Evaluation Error in file '{}': {}", file_path.display(), e);
                                             return Ok(()); // Stop on first evaluation error
                                         }
@@ -91,12 +92,12 @@ fn main() -> Result<()> {
                                 }
                                 Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                                     if !current_input.is_empty() {
-                                         let err_msg = format!("Parsing Error in file '{}': {:?}", file_path.display(), e);
-                                         info!(parsing_error = %err_msg, "Parsing failed in file");
-                                         eprintln!("{}", err_msg);
-                                         return Ok(()); // Stop on first parsing error
+                                        let err_msg = format!("Parsing Error in file '{}': {:?}", file_path.display(), e);
+                                        info!(parsing_error = %err_msg, "Parsing failed in file");
+                                        eprintln!("{}", err_msg);
+                                        return Ok(()); // Stop on first parsing error
                                     }
-                                    break;
+                                    break; // End of parsable content or legitimate error on empty remaining string
                                 }
                                 Err(nom::Err::Incomplete(_)) => {
                                     eprintln!("Parsing incomplete in file '{}': More input needed.", file_path.display());
@@ -105,12 +106,21 @@ fn main() -> Result<()> {
                             }
                         }
 
-                        if let Some(result) = last_eval_result {
-                            info!(final_evaluation_result = ?result, "Final evaluation result from file");
-                            println!("{:?}", result);
-                        } else {
-                            info!("No expressions evaluated from file or file was empty.");
+                        // After evaluating all expressions, construct and print the module.
+                        let module_path_str = file_path.display().to_string();
+                        let module_expr = crate::engine::ast::Expr::Module(crate::engine::ast::LispModule {
+                            path: module_path_str.clone(),
+                            env: file_env,
+                        });
+                        
+                        if !expressions_evaluated && content.trim().is_empty() {
+                            info!(file_path = %module_path_str, "File is empty, resulting in an empty module environment.");
+                        } else if !expressions_evaluated {
+                            info!(file_path = %module_path_str, "File contains no valid expressions, resulting in an empty module environment (beyond prelude).");
                         }
+
+                        info!(module = ?module_expr, "Result of file execution is a module");
+                        println!("{:?}", module_expr);
                     }
                     Err(e) => {
                         info!(file_read_error = %e, "Failed to read file");
