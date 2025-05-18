@@ -15,7 +15,12 @@ pub struct Cli {
 pub enum Commands {
     /// Evaluates a Lisp expression from a string or executes a Lisp file.
     Run(RunArgs),
+    /// Starts an interactive Read-Eval-Print Loop (REPL).
+    Repl(ReplArgs),
 }
+
+#[derive(Args, Debug)]
+pub struct ReplArgs {} // Empty for now, can add options later if needed
 
 #[derive(Args, Debug)]
 pub struct RunArgs {

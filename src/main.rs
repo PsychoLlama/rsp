@@ -167,6 +167,13 @@ fn main() -> Result<()> {
             }
             // Clap should ensure that either expr or file is present, so no 'else' needed here.
         }
+        Commands::Repl(_repl_args) => {
+            info!("Starting REPL mode");
+            let repl_env = Environment::new_with_prelude();
+            if let Err(e) = crate::repl::start_repl(repl_env) {
+                eprintln!("REPL Error: {}", e);
+            }
+        }
     }
 
     info!("Lisp interpreter finished");
