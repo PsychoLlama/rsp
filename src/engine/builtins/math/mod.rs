@@ -99,6 +99,46 @@ pub fn native_subtract(args: Vec<Expr>) -> Result<Expr, LispError> {
     Ok(Expr::Number(result))
 }
 
+#[tracing::instrument(skip(args), ret, err)]
+pub fn native_divide(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native '/' function");
+    if args.is_empty() {
+        let arity_error = LispError::ArityMismatch(
+            "Native '/' expects at least 1 argument, got 0".to_string(),
+        );
+        error!(error = %arity_error, "Arity error in native '/'");
+        return Err(arity_error);
+    }
+
+    let first_val = extract_number(&args[0], "/")?;
+
+    if args.len() == 1 {
+        // Reciprocal: (/ x)
+        if first_val == 0.0 {
+            let div_zero_error = LispError::DivisionByZero("Division by zero in native '/' (reciprocal of 0)".to_string());
+            error!(error = %div_zero_error, "Division by zero error in native '/'");
+            return Err(div_zero_error);
+        }
+        return Ok(Expr::Number(1.0 / first_val));
+    }
+
+    // Division: (/ x y z ...)
+    let mut result = first_val;
+    for (i, arg_expr) in args.iter().skip(1).enumerate() {
+        let divisor = extract_number(arg_expr, "/")?;
+        if divisor == 0.0 {
+            let div_zero_error = LispError::DivisionByZero(format!(
+                "Division by zero in native '/' (argument {})",
+                i + 2 // +1 for skip, +1 for 1-based indexing
+            ));
+            error!(error = %div_zero_error, "Division by zero error in native '/'");
+            return Err(div_zero_error);
+        }
+        result /= divisor;
+    }
+    Ok(Expr::Number(result))
+}
+
 pub fn create_math_module() -> Expr {
     trace!("Creating math module");
     let math_env_rc = Environment::new();
@@ -129,6 +169,13 @@ pub fn create_math_module() -> Expr {
             Expr::NativeFunction(NativeFunction {
                 name: "-".to_string(),
                 func: native_subtract,
+            }),
+        ),
+        (
+            "/".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "/".to_string(),
+                func: native_divide,
             }),
         ),
     ]);
@@ -528,6 +575,143 @@ mod tests {
         let env = Environment::new_with_prelude();
         // (- true)
         let expr = Expr::List(vec![Expr::Symbol("-".to_string()), Expr::Bool(true)]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::TypeError {
+                expected: "Number".to_string(),
+                found: "Bool(true)".to_string()
+            })
+        );
+    }
+
+    // Tests for native_divide
+    #[test]
+    fn test_native_divide_simple() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (/ 10 2)
+        let expr = Expr::List(vec![
+            Expr::Symbol("/".to_string()),
+            Expr::Number(10.0),
+            Expr::Number(2.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(5.0)));
+    }
+
+    #[test]
+    fn test_native_divide_multiple_args() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (/ 100 2 5)
+        let expr = Expr::List(vec![
+            Expr::Symbol("/".to_string()),
+            Expr::Number(100.0),
+            Expr::Number(2.0),
+            Expr::Number(5.0),
+        ]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(10.0)));
+    }
+
+    #[test]
+    fn test_native_divide_reciprocal() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (/ 4)
+        let expr = Expr::List(vec![Expr::Symbol("/".to_string()), Expr::Number(4.0)]);
+        assert_eq!(eval(&expr, env), Ok(Expr::Number(0.25)));
+    }
+
+    #[test]
+    fn test_native_divide_reciprocal_zero_error() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (/ 0)
+        let expr = Expr::List(vec![Expr::Symbol("/".to_string()), Expr::Number(0.0)]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::DivisionByZero(
+                "Division by zero in native '/' (reciprocal of 0)".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_native_divide_by_zero_error() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (/ 10 0)
+        let expr = Expr::List(vec![
+            Expr::Symbol("/".to_string()),
+            Expr::Number(10.0),
+            Expr::Number(0.0),
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::DivisionByZero(
+                "Division by zero in native '/' (argument 2)".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_native_divide_by_zero_multiple_args_error() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (/ 10 2 0 5)
+        let expr = Expr::List(vec![
+            Expr::Symbol("/".to_string()),
+            Expr::Number(10.0),
+            Expr::Number(2.0),
+            Expr::Number(0.0),
+            Expr::Number(5.0),
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::DivisionByZero(
+                "Division by zero in native '/' (argument 3)".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_native_divide_no_args_error() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (/)
+        let expr = Expr::List(vec![Expr::Symbol("/".to_string())]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::ArityMismatch(
+                "Native '/' expects at least 1 argument, got 0".to_string()
+            ))
+        );
+    }
+
+    #[test]
+    fn test_native_divide_type_error() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (/ 10 true)
+        let expr = Expr::List(vec![
+            Expr::Symbol("/".to_string()),
+            Expr::Number(10.0),
+            Expr::Bool(true), // Not a number
+        ]);
+        assert_eq!(
+            eval(&expr, env),
+            Err(LispError::TypeError {
+                expected: "Number".to_string(),
+                found: "Bool(true)".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn test_native_divide_type_error_reciprocal() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        // (/ true)
+        let expr = Expr::List(vec![Expr::Symbol("/".to_string()), Expr::Bool(true)]);
         assert_eq!(
             eval(&expr, env),
             Err(LispError::TypeError {
