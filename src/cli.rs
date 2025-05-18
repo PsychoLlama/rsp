@@ -4,7 +4,7 @@ use std::path::PathBuf;
 /// A simple Lisp interpreter written in Rust.
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
-#[clap(name = "rust-lisp-interpreter", bin_name = "rust-lisp-interpreter")]
+#[clap(name = "rsp", bin_name = "rsp")]
 #[clap(subcommand_required = true, arg_required_else_help = true)] // Ensures a subcommand is given, or help is printed.
 pub struct Cli {
     #[clap(subcommand)]
