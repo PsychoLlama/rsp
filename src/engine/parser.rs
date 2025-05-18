@@ -2,11 +2,11 @@ use nom::{
     IResult,
     Parser,      // Import the Parser trait to use its methods like .map() and .parse()
     branch::alt, // For trying multiple parsers
-    bytes::complete::{escaped_transform, tag}, // For matching literal strings & escaped strings
+    bytes::complete::{escaped_transform, tag, is_not}, // Added is_not
     character::complete::multispace0, // For handling whitespace
     character::complete::{char, multispace1, none_of, satisfy}, // For character-level parsing & whitespace
-    combinator::recognize, // For transforming and recognizing parser output
-    multi::{many0, separated_list0}, // For repeating parsers
+    combinator::{recognize, verify}, // Added verify
+    multi::{many0, separated_list0, fold_many0}, // Added fold_many0
     number::complete::double, // For parsing f64 numbers
     sequence::{delimited, pair, preceded, terminated}, // For sequencing parsers
 };
@@ -52,34 +52,50 @@ fn parse_nil_raw(input: &str) -> IResult<&str, Expr> {
     tag("nil").map(|_| Expr::Nil).parse(input)
 }
 
+// Helper: Parse a non-empty sequence of unescaped characters.
+// Ensures that it consumes at least one character if it matches.
+fn parse_unescaped_char_sequence(input: &str) -> IResult<&str, &str> {
+    verify(is_not("\"\\"), |s: &str| !s.is_empty())(input)
+}
+
+// Helper: Parse an escaped character and return it as a String.
+fn parse_escaped_char(input: &str) -> IResult<&str, String> {
+    preceded(
+        char('\\'),
+        alt((
+            tag("\"").map(|_| "\"".to_string()),
+            tag("\\").map(|_| "\\".to_string()),
+            tag("n").map(|_| "\n".to_string()),
+            tag("r").map(|_| "\r".to_string()),
+            tag("t").map(|_| "\t".to_string()),
+            // Add other escapes here if needed, e.g., unicode \uXXXX
+        )),
+    )(input)
+}
+
 // Parses a string literal e.g. "hello world" or "escaped \" char" - raw token.
+// Handles empty strings "" correctly.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
 fn parse_string_raw(input: &str) -> IResult<&str, Expr> {
     trace!("Attempting to parse raw string literal token");
     delimited(
         char('"'),
-        // Parses characters between quotes.
-        // `escaped_transform` handles common escapes like \", \\, \n, \r, \t
-        // and also allows any character not in `\` or `"` to be part of the string.
-        // For simplicity, we'll handle a limited set of escapes manually for now.
-        // A more robust solution would use `escaped_transform` or `escaped`.
-        // For now, let's use `recognize` and then process escapes, or a simpler `many0`.
-        // Using `escaped_transform` for better escape handling.
-        escaped_transform(
-            none_of("\"\\"), // Normal characters: any char except " or \
-            '\\',            // Escape character: \
+        fold_many0(
             alt((
-                // Transformed escape sequences should map to &str for escaped_transform
-                tag("\"").map(|_| "\""),
-                tag("\\").map(|_| "\\"),
-                tag("n").map(|_| "\n"),
-                tag("r").map(|_| "\r"),
-                tag("t").map(|_| "\t"),
+                // Try to parse a sequence of unescaped characters
+                parse_unescaped_char_sequence.map(|s: &str| s.to_string()),
+                // Try to parse a single escaped character
+                parse_escaped_char,
             )),
+            String::new, // Initial accumulator for the string
+            |mut acc, s_fragment| {
+                acc.push_str(&s_fragment);
+                acc
+            },
         ),
         char('"'),
     )
-    .map(|s: String| Expr::String(s)) // escaped_transform collects into String
+    .map(Expr::String) // Map the accumulated String to Expr::String
     .parse(input)
 }
 
