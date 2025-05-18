@@ -48,8 +48,8 @@ impl Expr {
             Expr::Symbol(s) => s.clone(),
             Expr::Number(n) => n.to_string(),
             Expr::List(list) => {
-                let Sexprs: Vec<String> = list.iter().map(|exp| exp.to_lisp_string()).collect();
-                format!("({})", Sexprs.join(" "))
+                let sexprs: Vec<String> = list.iter().map(|exp| exp.to_lisp_string()).collect();
+                format!("({})", sexprs.join(" "))
             }
             Expr::Function(_) => "<function>".to_string(), // Simplified representation
             Expr::NativeFunction(nf) => format!("<native_function:{}>", nf.name),
