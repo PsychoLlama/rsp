@@ -4,9 +4,9 @@ use nom::{
     branch::alt, // For trying multiple parsers
     bytes::complete::{is_not, tag}, // Removed escaped_transform
     character::complete::multispace0, // For handling whitespace
-    character::complete::{char, multispace1, satisfy}, // Removed none_of, For character-level parsing & whitespace
+    character::complete::{char, multispace1, satisfy, not_line_ending}, // Added not_line_ending, Removed none_of
     combinator::{recognize, verify},                   // Added verify
-    multi::{fold_many0, many0, separated_list0},       // Added fold_many0
+    multi::{fold_many0, many0, many1, separated_list0}, // Added fold_many0 and many1
     number::complete::double,                          // For parsing f64 numbers
     sequence::{delimited, pair, preceded, terminated}, // For sequencing parsers
 };
@@ -14,15 +14,35 @@ use tracing::trace; // For logging parser activity
 
 use crate::engine::ast::Expr; // Assuming your AST expressions are in ast::Expr
 
-// Helper to consume whitespace around a parser (UNUSED after refactor, kept for now if needed elsewhere)
-// Takes a parser `inner` and returns a new parser that consumes whitespace around `inner`.
-// fn ws<'a, P, O, E>(inner: P) -> impl nom::Parser<&'a str, Output = O, Error = E>
-// where
-//     P: nom::Parser<&'a str, Output = O, Error = E>,
-//     E: nom::error::ParseError<&'a str>,
-// {
-//     delimited(multispace0, inner, multispace0)
-// }
+// Parses a single comment line (from ';' to EOL, not including EOL itself).
+#[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
+fn parse_comment_line(input: &str) -> IResult<&str, &str> {
+    trace!("Attempting to parse comment line");
+    recognize(pair(char(';'), not_line_ending)).parse(input)
+}
+
+// Consumes zero or more whitespace characters or full-line comments.
+// Each "ignored item" is either a chunk of whitespace1 or a comment line.
+#[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
+fn space_or_comment0(input: &str) -> IResult<&str, &str> {
+    trace!("Attempting to parse zero or more spaces/comments");
+    recognize(many0(alt((
+        multispace1, // Consumes whitespace including newlines
+        parse_comment_line,
+    ))))
+    .parse(input)
+}
+
+// Consumes one or more whitespace characters or full-line comments.
+#[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
+fn space_or_comment1(input: &str) -> IResult<&str, &str> {
+    trace!("Attempting to parse one or more spaces/comments");
+    recognize(many1(alt((
+        multispace1,
+        parse_comment_line,
+    ))))
+    .parse(input)
+}
 
 // Parses a number (f64) into an Expr::Number - raw token, no surrounding whitespace handling.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
@@ -106,8 +126,8 @@ fn parse_quoted_expr_raw(input: &str) -> IResult<&str, Expr> {
     trace!("Attempting to parse raw quoted expression token");
     preceded(
         tag("'"),
-        // The expression being quoted can have leading whitespace after the quote character.
-        preceded(multispace0, expr_recursive_impl),
+        // The expression being quoted can have leading whitespace/comments after the quote character.
+        preceded(space_or_comment0, expr_recursive_impl),
     )
     .map(|expr| Expr::List(vec![Expr::Symbol("quote".to_string()), expr]))
     .parse(input)
@@ -142,15 +162,15 @@ fn list_raw(input: &str) -> IResult<&str, Expr> {
     delimited(
         // Consume (
         tag("("),
-        // Consume elements separated by multispace1, handling whitespace around each element.
-        // Also consume any whitespace before the closing parenthesis.
+        // Consume elements separated by space_or_comment1.
+        // Also consume any space/comments before the closing parenthesis.
         terminated(
             separated_list0(
-                multispace1, // Separator: one or more whitespace chars
-                // Element parser: consumes leading whitespace, then one core expression
-                preceded(multispace0, expr_recursive_impl),
+                space_or_comment1, // Separator: one or more spaces/comments
+                // Element parser: consumes leading spaces/comments, then one core expression
+                preceded(space_or_comment0, expr_recursive_impl),
             ),
-            multispace0, // Consume trailing whitespace before the closing parenthesis
+            space_or_comment0, // Consume trailing spaces/comments before the closing parenthesis
         ),
         // Consume )
         tag(")"),
@@ -181,11 +201,11 @@ fn expr_recursive_impl(input: &str) -> IResult<&str, Expr> {
 // Handles leading AND trailing whitespace around the core expression.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
 pub fn parse_expr(input: &str) -> IResult<&str, Expr> {
-    trace!("Attempting to parse expression (with surrounding whitespace handling)");
+    trace!("Attempting to parse expression (with surrounding whitespace/comment handling)");
     delimited(
-        multispace0,         // Consume leading whitespace
+        space_or_comment0,   // Consume leading spaces/comments
         expr_recursive_impl, // Parse the core expression
-        multispace0,         // Consume trailing whitespace
+        space_or_comment0,   // Consume trailing spaces/comments
     )
     .parse(input)
 }
