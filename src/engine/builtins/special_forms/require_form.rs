@@ -197,28 +197,47 @@ mod tests {
     use std::rc::Rc;
     use tempfile::tempdir; // For creating temporary directories for file-based module tests // To clear cache for specific test scenarios if needed
 
-    // Helper to parse and evaluate a Lisp expression string containing `require`.
-    // This uses `main_eval` because `require` is a special form handled by it.
-    fn run_require_expr(lisp_code: &str, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
-        let (remaining, parsed_expr_option) = parser::parse_expr(lisp_code)
-            .map_err(|e| LispError::Evaluation(format!("Test parse error: {}", e)))?;
+    // Helper to parse and evaluate a Lisp string containing potentially multiple expressions,
+    // returning the result of the last one.
+    fn run_require_expr(lisp_code_str: &str, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
+        let mut current_input: &str = lisp_code_str;
+        let mut last_result: Option<Result<Expr, LispError>> = None;
 
-        if !remaining.is_empty() {
-            return Err(LispError::Evaluation(format!(
-                "Unexpected remaining input in test: '{}'", // Added quotes for clarity
-                remaining
-            )));
+        loop {
+            current_input = current_input.trim_start();
+            if current_input.is_empty() {
+                break;
+            }
+
+            match parser::parse_expr(current_input) {
+                Ok((remaining, Some(ast))) => {
+                    let eval_result = main_eval(&ast, Rc::clone(&env));
+                    if eval_result.is_err() {
+                        return eval_result; // Propagate errors immediately
+                    }
+                    last_result = Some(eval_result);
+                    current_input = remaining;
+                }
+                Ok((remaining, None)) => {
+                    // Comment or whitespace, just advance
+                    current_input = remaining;
+                }
+                Err(e) => {
+                    // This is a hard parsing error from nom
+                    return Err(LispError::Evaluation(format!(
+                        "Test parse error for code '{}': {}",
+                        lisp_code_str, e
+                    )));
+                }
+            }
         }
 
-        if let Some(parsed_expr) = parsed_expr_option {
-            main_eval(&parsed_expr, env) // Use main_eval from crate::engine::eval
-        } else {
-            // This case should ideally not be hit if lisp_code for require is always a valid expression.
-            // If `(require ...)` itself is the only content, parse_expr should yield Some.
-            // If lisp_code was e.g. "; just a comment", then this branch would be hit.
-            Err(LispError::Evaluation(
-                "No valid expression found in require test code".to_string(),
-            ))
+        match last_result {
+            Some(Ok(expr)) => Ok(expr),
+            Some(Err(e)) => Err(e), // Should have been returned earlier, but as a fallback
+            None => Err(LispError::Evaluation(
+                "No expressions evaluated in test code".to_string(),
+            )),
         }
     }
 
@@ -394,14 +413,14 @@ mod tests {
         let module_name_for_require = format!("examples/{}", dir.path().file_name().unwrap().to_str().unwrap());
         let module_file_name_for_let = format!("{}/dyn_mod_sym", module_name_for_require);
 
-
-        let lisp_code = format!(
-            r#"
-            (let module-path-symbol (quote {}))
-            (require module-path-symbol)
-            "#,
-            module_file_name_for_let // e.g. examples/tempdirname/dyn_mod_sym
-        );
+        // The `lisp_code` variable was unused, `lisp_code_dynamic` is used below.
+        // let lisp_code = format!(
+        //     r#"
+        //     (let module-path-symbol (quote {}))
+        //     (require module-path-symbol)
+        //     "#,
+        //     module_file_name_for_let // e.g. examples/tempdirname/dyn_mod_sym
+        // );
         
         // We need to adjust the path for require to be relative to where cargo test runs (project root)
         // and ensure the temp file is created within an "examples/tempdir" structure if that's how require resolves.
