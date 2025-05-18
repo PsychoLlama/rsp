@@ -14,7 +14,7 @@ use nom::{
 };
 use tracing::trace; // For logging parser activity
 
-use crate::ast::Expr; // Assuming your AST expressions are in ast::Expr
+use crate::engine::ast::Expr; // Assuming your AST expressions are in ast::Expr
 
 // Helper to consume whitespace around a parser (UNUSED after refactor, kept for now if needed elsewhere)
 // Takes a parser `inner` and returns a new parser that consumes whitespace around `inner`.

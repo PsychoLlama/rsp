@@ -1,5 +1,5 @@
-use crate::ast::{Expr, NativeFunction};
-use crate::builtins::{native_add, native_equals, native_multiply}; // Added native_multiply
+use crate::engine::ast::{Expr, NativeFunction};
+use crate::engine::builtins::{native_add, native_equals, native_multiply}; // Added native_multiply
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -99,7 +99,7 @@ impl Environment {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::Expr;
+    use crate::engine::ast::Expr;
     use crate::logging::init_test_logging; // Use new logging setup
 
     #[test]

@@ -1,7 +1,7 @@
-use crate::ast::Expr;
-use crate::builtins;
-use crate::env::Environment;
-use crate::special_forms; // Added for special form constants
+use crate::engine::ast::Expr;
+use crate::engine::builtins;
+use crate::engine::env::Environment;
+use crate::engine::special_forms; // Added for special form constants
 use std::cell::RefCell;
 use std::rc::Rc;
 use thiserror::Error;

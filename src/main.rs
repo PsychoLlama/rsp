@@ -1,11 +1,6 @@
-mod ast;
-mod builtins;
-mod env;
-mod eval;
-mod parser; // Add parser module
-mod special_forms;
 mod cli; // Add cli module
 mod logging; // Add logging module
+mod engine; // Add engine module
 
 use anyhow::Result;
 use clap::Parser; // Import the Parser trait
@@ -13,9 +8,9 @@ use tracing::info;
 
 // Import necessary items for parsing and evaluation
 use crate::cli::{Cli, Commands}; // Import new CLI structs
-use crate::parser::parse_expr;
-use crate::eval::eval;
-use crate::env::Environment;
+use crate::engine::parser::parse_expr;
+use crate::engine::eval::eval;
+use crate::engine::env::Environment;
 use std::fs; // For file reading
 use std::rc::Rc; // For Rc::clone on environment
 // std::path::PathBuf is used in cli.rs, not directly here unless for type annotation if needed.
@@ -70,7 +65,7 @@ fn main() -> Result<()> {
                 match fs::read_to_string(&file_path) {
                     Ok(content) => {
                         let root_env = Environment::new_with_prelude();
-                        let mut last_eval_result: Option<crate::ast::Expr> = None;
+                        let mut last_eval_result: Option<crate::engine::ast::Expr> = None;
                         let mut current_input: &str = &content;
 
                         loop {

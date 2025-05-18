@@ -1,6 +1,6 @@
-use crate::ast::{Expr, LispFunction};
-use crate::env::Environment;
-use crate::eval::LispError; // eval_let needs to return LispError
+use crate::engine::ast::{Expr, LispFunction};
+use crate::engine::env::Environment;
+use crate::engine::eval::LispError; // eval_let needs to return LispError
 use std::cell::RefCell;
 use std::rc::Rc;
 use tracing::{debug, error, trace};
@@ -37,15 +37,15 @@ pub fn eval_let(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Li
     };
 
     // Check if the variable name is a reserved keyword
-    if crate::special_forms::is_special_form(&var_name) {
+    if crate::engine::special_forms::is_special_form(&var_name) {
         error!(attempted_keyword = %var_name, "Attempted to bind a reserved keyword using 'let'");
         return Err(LispError::ReservedKeyword(var_name));
     }
 
     debug!(variable_name = %var_name, value_expression = ?value_expr, "'let' binding");
     // Note: We need to call back into the main eval function here.
-    // This requires `crate::eval::eval` to be accessible.
-    let evaluated_value = crate::eval::eval(value_expr, Rc::clone(&env))?;
+    // This requires `crate::engine::eval::eval` to be accessible.
+    let evaluated_value = crate::engine::eval::eval(value_expr, Rc::clone(&env))?;
 
     env.borrow_mut()
         .define(var_name.clone(), evaluated_value.clone());
@@ -89,7 +89,7 @@ pub fn eval_fn(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
         match param {
             Expr::Symbol(name) => {
                 // Check if parameter name is a reserved keyword
-                if crate::special_forms::is_special_form(name) {
+                if crate::engine::special_forms::is_special_form(name) {
                     error!(attempted_keyword = %name, "Attempted to use a reserved keyword as a function parameter");
                     return Err(LispError::ReservedKeyword(name.clone()));
                 }
@@ -153,7 +153,7 @@ pub fn eval_if(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
     let then_expr = &args[1];
     let else_expr_opt = args.get(2);
 
-    let condition_result = crate::eval::eval(condition_expr, Rc::clone(&env))?;
+    let condition_result = crate::engine::eval::eval(condition_expr, Rc::clone(&env))?;
     debug!(?condition_result, "Evaluated 'if' condition");
 
     match condition_result {
@@ -161,7 +161,7 @@ pub fn eval_if(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
             // Condition is false or nil, evaluate else-branch or return Nil
             if let Some(else_expr) = else_expr_opt {
                 trace!("Condition is false-y, evaluating else-branch");
-                crate::eval::eval(else_expr, env)
+                crate::engine::eval::eval(else_expr, env)
             } else {
                 trace!("Condition is false-y, no else-branch, returning Nil");
                 Ok(Expr::Nil)
@@ -170,7 +170,7 @@ pub fn eval_if(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
         _ => {
             // Condition is truthy (anything not false or Nil)
             trace!("Condition is truthy, evaluating then-branch");
-            crate::eval::eval(then_expr, env)
+            crate::engine::eval::eval(then_expr, env)
         }
     }
 }
@@ -248,9 +248,9 @@ pub fn native_multiply(args: Vec<Expr>) -> Result<Expr, LispError> {
 #[cfg(test)]
 mod tests {
     use super::{native_add, native_equals, native_multiply}; // Import parent module's functions
-    use crate::ast::{Expr, LispFunction, NativeFunction}; // Added NativeFunction
-    use crate::env::Environment;
-    use crate::eval::{LispError, eval}; // Need main eval for testing integration
+    use crate::engine::ast::{Expr, LispFunction, NativeFunction}; // Added NativeFunction
+    use crate::engine::env::Environment;
+    use crate::engine::eval::{LispError, eval}; // Need main eval for testing integration
     use crate::logging::init_test_logging; // Use new logging setup
     use std::rc::Rc; // For Environment
 

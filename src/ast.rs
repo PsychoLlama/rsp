@@ -1,4 +1,4 @@
-use crate::env::Environment;
+use crate::engine::env::Environment;
 use std::cell::RefCell;
 use std::fmt;
 use std::rc::Rc;
@@ -43,7 +43,7 @@ pub enum Expr {
 
 /// Type alias for a native Rust function that can be called from Lisp.
 /// It takes a Vec of already-evaluated Expr arguments and returns a Result<Expr, LispError>.
-pub type NativeFn = fn(Vec<Expr>) -> Result<Expr, crate::eval::LispError>; // Forward declare LispError path
+pub type NativeFn = fn(Vec<Expr>) -> Result<Expr, crate::engine::eval::LispError>; // Forward declare LispError path
 
 #[derive(Clone)]
 pub struct NativeFunction {
