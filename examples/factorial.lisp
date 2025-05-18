@@ -1,6 +1,6 @@
 ; Defines a recursive factorial function and calls it.
 
-(define factorial
+(let factorial
   (fn (n)
     (if (= n 0)
         1 ; Base case: 0! = 1

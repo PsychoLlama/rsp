@@ -10,15 +10,15 @@
 (log/info "") ; Empty line for spacing
 
 (log/info "Using Variables:")
-(define x 10)
-(define y 5)
+(let x 10)
+(let y 5)
 
 (log/info "x =" x)
 (log/info "y =" y)
 (log/info "x + y =" (+ x y))
 (log/info "x * y =" (* x y))
 
-(define z (+ (* x 2) y))
+(let z (+ (* x 2) y))
 (log/info "z = (x * 2) + y =" z)
 
 (log/info "")
