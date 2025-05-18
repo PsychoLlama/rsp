@@ -88,8 +88,8 @@ fn main() -> Result<()> {
                                             return Ok(()); // Stop on first evaluation error
                                         }
                                     }
-                                    current_input = remaining; // Moved inside the Ok arm
-                                }
+                                    current_input = remaining; // Correctly placed inside the Ok arm
+                                }, // Added comma for match arm separation
                                 Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                                     if !current_input.is_empty() {
                                         let err_msg = format!("Parsing Error in file '{}': {:?}", file_path.display(), e);
