@@ -94,6 +94,53 @@ fn trim(args: Vec<Expr>) -> Result<Expr, LispError> {
     Ok(Expr::String(s.trim().to_string()))
 }
 
+// Native function for string formatting: (string/format fmt_str arg1 arg2 ...)
+fn string_format(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native string function: string/format");
+    if args.is_empty() {
+        return Err(LispError::ArityMismatch(
+            "string/format expects at least 1 argument (the format string)".to_string(),
+        ));
+    }
+
+    let format_str_expr = &args[0];
+    let format_str = match format_str_expr {
+        Expr::String(s) => s,
+        _ => {
+            return Err(LispError::TypeError {
+                expected: "String (for format)".to_string(),
+                found: format!("{:?}", format_str_expr),
+            });
+        }
+    };
+
+    let mut arg_iter = args.iter().skip(1);
+    let mut result_string = String::new();
+    let mut last_pos = 0;
+
+    // Basic %s interpolation
+    while let Some(placeholder_pos) = format_str[last_pos..].find("%s") {
+        let current_segment_start = last_pos + placeholder_pos;
+        result_string.push_str(&format_str[last_pos..current_segment_start]);
+
+        if let Some(arg_to_print) = arg_iter.next() {
+            result_string.push_str(&arg_to_print.to_lisp_string());
+        } else {
+            // Not enough args for all %s, append %s literally
+            result_string.push_str("%s");
+        }
+        last_pos = current_segment_start + 2; // Move past "%s"
+    }
+    result_string.push_str(&format_str[last_pos..]);
+
+    // Append any remaining arguments if there were no more %s placeholders
+    // This behavior might be debatable; typically format ignores extra args.
+    // For now, let's stick to typical printf-like behavior where extra args are ignored.
+
+    Ok(Expr::String(result_string))
+}
+
+
 /// Creates the `string` module with its associated functions.
 pub fn create_string_module() -> Expr {
     trace!("Creating string module");
@@ -143,6 +190,13 @@ pub fn create_string_module() -> Expr {
                 Expr::NativeFunction(NativeFunction {
                     name: "string/trim".to_string(),
                     func: trim,
+                }),
+            ),
+            (
+                "format".to_string(), // New format function
+                Expr::NativeFunction(NativeFunction {
+                    name: "string/format".to_string(),
+                    func: string_format,
                 }),
             ),
         ]);
@@ -302,5 +356,60 @@ mod tests {
 
         let err_type = eval_str(r#"(string.trim 1)"#, env).unwrap_err();
         assert!(matches!(err_type, LispError::TypeError { expected, .. } if expected == "String"));
+    }
+
+    #[test]
+    fn test_string_format() {
+        let env = env_with_testable_string_functions();
+
+        // Basic interpolation
+        let result = eval_str(
+            r#"(string.format "Hello, %s! You are %s." "World" "awesome")"#,
+            env.clone(),
+        )
+        .unwrap();
+        assert_eq!(
+            result,
+            Expr::String("Hello, World! You are awesome.".to_string())
+        );
+
+        // Not enough arguments for %s
+        let result_not_enough_args =
+            eval_str(r#"(string.format "Value: %s and %s" 1)"#, env.clone()).unwrap();
+        assert_eq!(
+            result_not_enough_args,
+            Expr::String("Value: 1 and %s".to_string())
+        );
+
+        // Too many arguments (extra are ignored)
+        let result_too_many_args = eval_str(
+            r#"(string.format "Name: %s" "Alice" "ignored")"#,
+            env.clone(),
+        )
+        .unwrap();
+        assert_eq!(
+            result_too_many_args,
+            Expr::String("Name: Alice".to_string())
+        );
+
+        // No %s in format string
+        let result_no_placeholders =
+            eval_str(r#"(string.format "Just a string" 1 2)"#, env.clone()).unwrap();
+        assert_eq!(
+            result_no_placeholders,
+            Expr::String("Just a string".to_string())
+        );
+
+        // Empty format string
+        let result_empty_fmt = eval_str(r#"(string.format "")"#, env.clone()).unwrap();
+        assert_eq!(result_empty_fmt, Expr::String("".to_string()));
+
+        // Arity error: no format string
+        let err_arity = eval_str(r#"(string.format)"#, env.clone()).unwrap_err();
+        assert!(matches!(err_arity, LispError::ArityMismatch(_)));
+
+        // Type error: format string not a string
+        let err_type = eval_str(r#"(string.format 123 "arg")"#, env).unwrap_err();
+        assert!(matches!(err_type, LispError::TypeError { expected, .. } if expected == "String (for format)"));
     }
 }
