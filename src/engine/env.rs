@@ -1,5 +1,7 @@
 use crate::engine::ast::{Expr, NativeFunction};
-use crate::engine::builtins::math::{native_add, native_equals, native_multiply}; // Updated path
+use crate::engine::builtins::math::{
+    create_math_module, native_add, native_equals, native_multiply,
+}; // Updated path
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -30,44 +32,13 @@ impl Environment {
             outer: None,
         }));
 
-        // Define prelude functions
-        // Each tuple is (Lisp name, Rust function pointer)
-        const PRELUDE_NATIVE_FUNCTIONS: &[(&str, crate::engine::ast::NativeFn)] = &[
-            ("+", native_add),
-            ("=", native_equals),
-            ("*", native_multiply),
-            // println is removed
-        ];
-
-        const MATH_FUNCTION_NAMES: &[&str] = &["+", "=", "*"];
         const LOG_FUNCTION_NAMES_MAP: &[(&str, crate::engine::ast::NativeFn)] = &[
             ("info", crate::engine::builtins::log::native_log_info),
             ("error", crate::engine::builtins::log::native_log_error),
         ];
 
-        // Create the math module environment
-        let math_module_env = Rc::new(RefCell::new(Environment {
-            bindings: HashMap::new(),
-            outer: None,
-        }));
-        {
-            let mut math_env_borrowed = math_module_env.borrow_mut();
-            for (name, func) in PRELUDE_NATIVE_FUNCTIONS {
-                if MATH_FUNCTION_NAMES.contains(name) {
-                    math_env_borrowed.define(
-                        name.to_string(),
-                        Expr::NativeFunction(NativeFunction {
-                            name: name.to_string(),
-                            func: *func,
-                        }),
-                    );
-                }
-            }
-        }
-        let math_module = Expr::Module(crate::engine::ast::LispModule {
-            path: std::path::PathBuf::from("builtin:math"),
-            env: math_module_env,
-        });
+        // Create the math module using its dedicated function
+        let math_module = create_math_module();
 
         // Create the log module environment
         let log_module_env = Rc::new(RefCell::new(Environment {
@@ -98,18 +69,27 @@ impl Environment {
             root_env_borrowed.define("log".to_string(), log_module);
 
             // Define shorthand math functions directly in root prelude
-            for (name, func) in PRELUDE_NATIVE_FUNCTIONS {
-                if MATH_FUNCTION_NAMES.contains(name) {
-                    // Only add math shorthands for now
-                    root_env_borrowed.define(
-                        name.to_string(),
-                        Expr::NativeFunction(NativeFunction {
-                            name: name.to_string(),
-                            func: *func,
-                        }),
-                    );
-                }
-            }
+            root_env_borrowed.define(
+                "+".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "+".to_string(),
+                    func: native_add,
+                }),
+            );
+            root_env_borrowed.define(
+                "=".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "=".to_string(),
+                    func: native_equals,
+                }),
+            );
+            root_env_borrowed.define(
+                "*".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "*".to_string(),
+                    func: native_multiply,
+                }),
+            );
         }
         trace!(env = ?env_rc.borrow(), "Environment after adding prelude");
         env_rc

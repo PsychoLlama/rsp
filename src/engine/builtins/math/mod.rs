@@ -1,5 +1,10 @@
-use crate::engine::ast::Expr;
+use crate::engine::ast::{Expr, LispModule, NativeFunction};
+use crate::engine::env::Environment;
 use crate::engine::eval::LispError;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::rc::Rc;
 use tracing::{error, trace};
 
 // Helper function, not public
@@ -70,9 +75,49 @@ pub fn native_multiply(args: Vec<Expr>) -> Result<Expr, LispError> {
     Ok(Expr::Number(product))
 }
 
+pub fn create_math_module() -> Expr {
+    trace!("Creating math module");
+    let math_env_rc = Environment::new();
+    let functions_to_define = HashMap::from([
+        (
+            "+".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "+".to_string(),
+                func: native_add,
+            }),
+        ),
+        (
+            "=".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "=".to_string(),
+                func: native_equals,
+            }),
+        ),
+        (
+            "*".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "*".to_string(),
+                func: native_multiply,
+            }),
+        ),
+    ]);
+
+    {
+        let mut math_env_borrowed = math_env_rc.borrow_mut();
+        for (name, expr) in functions_to_define {
+            math_env_borrowed.define(name, expr);
+        }
+    }
+
+    Expr::Module(LispModule {
+        path: PathBuf::from("builtin:math"),
+        env: math_env_rc,
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*; // Imports native_add, native_equals, native_multiply, extract_number
+    use super::*; // Imports native_add, native_equals, native_multiply, extract_number, create_math_module
     use crate::engine::ast::{Expr, NativeFunction};
     use crate::engine::env::Environment;
     use crate::engine::eval::{LispError, eval};
