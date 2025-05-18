@@ -172,6 +172,31 @@ pub fn eval_if(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
     }
 }
 
+#[tracing::instrument(skip(args, env), fields(args = ?args), ret, err)]
+pub fn eval_require(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
+    trace!("Executing 'require' special form");
+    // Placeholder implementation
+    // Expects one argument: a string literal (path) or a symbol whose value is a path.
+    if args.len() != 1 {
+        error!("'require' special form requires 1 argument (file path), found {}", args.len());
+        return Err(LispError::ArityMismatch(format!(
+            "'require' expects 1 argument, got {}",
+            args.len()
+        )));
+    }
+
+    let path_expr = &args[0];
+    // TODO: Evaluate path_expr if it's a symbol, or directly use if it's a string literal.
+    // For now, assume it's a symbol that needs evaluation or a string literal.
+    // This part will be expanded.
+    debug!(path_expr = ?path_expr, "Path expression for 'require'");
+    
+    // For now, just return Nil to indicate it was called.
+    // Actual file loading and environment merging will be implemented later.
+    error!("'require' special form is not fully implemented yet.");
+    Ok(Expr::Nil) // Or perhaps an error: LispError::Evaluation("Not implemented".to_string())
+}
+
 // Native Rust functions callable from Lisp (the "prelude" functions)
 
 fn extract_number(expr: &Expr, op_name: &str) -> Result<f64, LispError> {

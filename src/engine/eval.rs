@@ -71,6 +71,9 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                 Expr::Symbol(s) if s == special_forms::IF => {
                     builtins::eval_if(&list[1..], Rc::clone(&env))
                 }
+                Expr::Symbol(s) if s == special_forms::REQUIRE => {
+                    builtins::eval_require(&list[1..], Rc::clone(&env))
+                }
                 // Attempt to evaluate as a function call
                 _ => {
                     trace!("First element is not a known special form, attempting function call");
