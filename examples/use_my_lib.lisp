@@ -12,7 +12,7 @@
 
 ; Call functions and access variables from the loaded module.
 (log/info (lib/greet "User"))
-(log/info "Value of pi from lib:" (lib/pi))
+(log/info "Value of pi from lib:" lib/pi) ; Use bare symbol to access variable
 
 (log/info "")
 (log/info "Demonstrating direct math module usage for comparison (if math is global):")
@@ -22,6 +22,6 @@
 (log/info "Using string formatting with a library function result and variable:")
 (log/info (string/format "Greeting: %s. Pi times two is %s."
                          (lib/greet "Another User")
-                         (* (lib/pi) 2)))
+                         (* lib/pi 2))) ; Use bare symbol for pi here as well
 
 (log/info "use_my_lib.lisp: Finished.")
