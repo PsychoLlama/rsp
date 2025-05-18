@@ -77,7 +77,7 @@ mod tests {
     use crate::engine::env::Environment;
     use crate::engine::eval::{eval, LispError};
     use crate::logging::init_test_logging;
-    use std::rc::Rc;
+    // Rc is not used in these tests
 
     // Tests for native functions (math specific)
     #[test]
