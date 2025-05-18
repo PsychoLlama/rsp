@@ -4,14 +4,23 @@ use rustyline::history::DefaultHistory;
 use rustyline::Editor;
 use std::cell::RefCell;
 use std::rc::Rc;
-use tracing::{info, warn}; // Removed 'error' as it's handled in history.rs
+use tracing::{info, warn};
 
-mod history; // Declare the new history module
+mod history;
+mod highlighter; // Declare the new highlighter module
 
 #[tracing::instrument(skip(env))]
 pub fn start_repl(env: Rc<RefCell<Environment>>) -> anyhow::Result<()> {
-    info!("Starting REPL session with rustyline");
-    let mut rl = Editor::<(), DefaultHistory>::new()?;
+    info!("Starting REPL session with rustyline and syntax highlighting");
+    
+    let helper = highlighter::ReplHelper::new();
+    // Create editor with helper and default history
+    let mut rl = Editor::<highlighter::ReplHelper, DefaultHistory>::new()?;
+    // It seems Editor::new() will use H::default() and I::default().
+    // If ReplHelper implements Default, this should work.
+    // Alternatively, use `Editor::with_config_and_helper_and_history` if more control is needed.
+    // For now, assuming ReplHelper::default() is suitable.
+
     let mut line_number = 1;
 
     let history_path_opt = history::get_history_path();

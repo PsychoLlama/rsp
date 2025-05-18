@@ -1,3 +1,4 @@
+use crate::repl::highlighter::ReplHelper; // Import the new helper
 use rustyline::history::DefaultHistory;
 use rustyline::Editor;
 use std::fs;
@@ -16,7 +17,7 @@ pub(crate) fn get_history_path() -> Option<PathBuf> {
 }
 
 pub(crate) fn load_history_from_path(
-    rl: &mut Editor<(), DefaultHistory>,
+    rl: &mut Editor<ReplHelper, DefaultHistory>, // Updated Editor type
     history_path: &PathBuf,
 ) {
     if let Some(parent_dir) = history_path.parent() {
@@ -51,7 +52,7 @@ pub(crate) fn load_history_from_path(
 }
 
 pub(crate) fn save_history_to_path(
-    rl: &mut Editor<(), DefaultHistory>,
+    rl: &mut Editor<ReplHelper, DefaultHistory>, // Updated Editor type
     history_path: &PathBuf,
 ) {
     if let Err(err) = rl.save_history(history_path) {
