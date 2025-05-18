@@ -1,7 +1,9 @@
 use crate::engine::ast::{Expr, NativeFunction};
 use crate::engine::builtins::log::create_log_module;
 use crate::engine::builtins::math::{
-    create_math_module, native_add, native_divide, native_equals, native_multiply, native_subtract,
+    create_math_module, native_add, native_divide, native_equals, native_greater_than,
+    native_greater_than_or_equal, native_less_than, native_less_than_or_equal, native_multiply,
+    native_subtract,
 };
 use crate::engine::builtins::string::create_string_module;
 use crate::engine::env::Environment;
@@ -59,6 +61,34 @@ pub fn populate_globals(env: Rc<RefCell<Environment>>) {
         Expr::NativeFunction(NativeFunction {
             name: "/".to_string(),
             func: native_divide,
+        }),
+    );
+    root_env_borrowed.define(
+        "<".to_string(),
+        Expr::NativeFunction(NativeFunction {
+            name: "<".to_string(),
+            func: native_less_than,
+        }),
+    );
+    root_env_borrowed.define(
+        ">".to_string(),
+        Expr::NativeFunction(NativeFunction {
+            name: ">".to_string(),
+            func: native_greater_than,
+        }),
+    );
+    root_env_borrowed.define(
+        "<=".to_string(),
+        Expr::NativeFunction(NativeFunction {
+            name: "<=".to_string(),
+            func: native_less_than_or_equal,
+        }),
+    );
+    root_env_borrowed.define(
+        ">=".to_string(),
+        Expr::NativeFunction(NativeFunction {
+            name: ">=".to_string(),
+            func: native_greater_than_or_equal,
         }),
     );
 }
