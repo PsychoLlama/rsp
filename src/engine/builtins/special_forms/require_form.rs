@@ -249,19 +249,18 @@ mod tests {
         writeln!(file, "(let in-module 123)").unwrap();
         drop(file); // Ensure file is closed and written
 
-        // Temporarily change current directory for the scope of this test
-        // so that `(require 'my_fs_module)` resolves correctly.
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
+        // No longer need to change CWD if we use absolute paths in require.
+        // let original_dir = std::env::current_dir().unwrap();
+        // std::env::set_current_dir(dir.path()).unwrap();
 
         let canonical_file_path = fs::canonicalize(&file_path).unwrap();
         MODULE_CACHE.with(|mc| mc.borrow_mut().remove(&canonical_file_path));
 
+        // Use the absolute path string in the require call
+        let require_expr_str = format!("(require \"{}\")", file_path.to_str().unwrap());
+        let result = run_require_expr(&require_expr_str, Rc::clone(&env));
 
-        let result = run_require_expr("(require 'my_fs_module)", Rc::clone(&env));
-
-        // Restore original directory
-        std::env::set_current_dir(original_dir).unwrap();
+        // std::env::set_current_dir(original_dir).unwrap();
 
 
         match result {
@@ -287,16 +286,18 @@ mod tests {
         writeln!(file, "(let val 789)").unwrap();
         drop(file);
 
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
+        // let original_dir = std::env::current_dir().unwrap();
+        // std::env::set_current_dir(dir.path()).unwrap();
         
         let canonical_file_path = fs::canonicalize(&file_path).unwrap();
         MODULE_CACHE.with(|mc| mc.borrow_mut().remove(&canonical_file_path));
 
-        // Require with ".lisp" already in the name
-        let result = run_require_expr("(require 'another_module.lisp)", Rc::clone(&env));
+        // Use the absolute path string in the require call
+        // The module name itself (another_module.lisp) will be extracted by eval_require
+        let require_expr_str = format!("(require \"{}\")", file_path.to_str().unwrap());
+        let result = run_require_expr(&require_expr_str, Rc::clone(&env));
         
-        std::env::set_current_dir(original_dir).unwrap();
+        // std::env::set_current_dir(original_dir).unwrap();
 
         match result {
             Ok(Expr::Module(module)) => {
@@ -315,13 +316,17 @@ mod tests {
     fn test_require_module_not_found_on_filesystem() {
         init_test_logging();
         let env = Environment::new_with_prelude();
-        // Ensure "non_existent_fs_module.lisp" does not exist in current dir or prelude
-        let result = run_require_expr("(require \"non_existent_fs_module\")", Rc::clone(&env));
+        let dir = tempdir().unwrap();
+        // Construct an absolute path to a non-existent file within the temp directory
+        let non_existent_path_str = dir.path().join("non_existent_fs_module.lisp");
+        
+        let require_expr_str = format!("(require \"{}\")", non_existent_path_str.to_str().unwrap());
+        let result = run_require_expr(&require_expr_str, Rc::clone(&env));
         
         match result {
             Err(LispError::ModuleNotFound(path)) => {
-                // Path will be absolute, check that it ends with the expected file name
-                assert!(path.to_string_lossy().ends_with("non_existent_fs_module.lisp"));
+                // The path in the error should be the absolute path we tried to load
+                assert_eq!(path, non_existent_path_str);
             }
             _ => panic!("Expected ModuleNotFound, got {:?}", result),
         }
@@ -338,15 +343,16 @@ mod tests {
         writeln!(file, "(+ 1 \"this-is-not-a-number\")").unwrap();
         drop(file);
 
-        let original_dir = std::env::current_dir().unwrap();
-        std::env::set_current_dir(dir.path()).unwrap();
+        // let original_dir = std::env::current_dir().unwrap();
+        // std::env::set_current_dir(dir.path()).unwrap();
 
         let canonical_file_path = fs::canonicalize(&file_path).unwrap();
         MODULE_CACHE.with(|mc| mc.borrow_mut().remove(&canonical_file_path));
 
-        let result = run_require_expr("(require 'runtime_error_module)", Rc::clone(&env));
+        let require_expr_str = format!("(require \"{}\")", file_path.to_str().unwrap());
+        let result = run_require_expr(&require_expr_str, Rc::clone(&env));
         
-        std::env::set_current_dir(original_dir).unwrap();
+        // std::env::set_current_dir(original_dir).unwrap();
 
         match result {
             Err(LispError::ModuleLoadError { path, source }) => {
