@@ -33,13 +33,19 @@ impl Environment {
         // Define prelude functions
         // Each tuple is (Lisp name, Rust function pointer)
         const PRELUDE_NATIVE_FUNCTIONS: &[(&str, crate::engine::ast::NativeFn)] = &[
+            // Shorthand versions
             ("+", native_add),
             ("=", native_equals),
             ("*", native_multiply),
-            ("println", crate::engine::builtins::native_println), // Added println
+            // Namespaced-like versions (parsed as single symbols)
+            ("math/+", native_add),
+            ("math/=", native_equals),
+            ("math/*", native_multiply),
+            // Other builtins
+            ("println", crate::engine::builtins::native_println),
         ];
 
-        const MATH_FUNCTION_NAMES: &[&str] = &["+", "=", "*"];
+        const MATH_FUNCTION_NAMES: &[&str] = &["+", "=", "*"]; // These are the short names for the math module's internal env
 
         // Create the math module environment
         let math_module_env = Rc::new(RefCell::new(Environment {
