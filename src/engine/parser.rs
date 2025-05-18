@@ -83,6 +83,19 @@ fn parse_string_raw(input: &str) -> IResult<&str, Expr> {
     .parse(input)
 }
 
+// Parses a quoted expression e.g., 'foo or '(1 2) - raw token.
+#[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
+fn parse_quoted_expr_raw(input: &str) -> IResult<&str, Expr> {
+    trace!("Attempting to parse raw quoted expression token");
+    preceded(
+        tag("'"),
+        // The expression being quoted can have leading whitespace after the quote character.
+        preceded(multispace0, expr_recursive_impl),
+    )
+    .map(|expr| Expr::List(vec![Expr::Symbol("quote".to_string()), expr]))
+    .parse(input)
+}
+
 // Parses a symbol - raw token.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
 fn parse_symbol_raw(input: &str) -> IResult<&str, Expr> {
@@ -139,8 +152,9 @@ fn expr_recursive_impl(input: &str) -> IResult<&str, Expr> {
         parse_true_raw,
         parse_false_raw,
         parse_nil_raw,
-        parse_string_raw, // Added string literal parser
-        list_raw,         // list_raw is now an alternative here
+        parse_quoted_expr_raw, // Added for 'expr syntax
+        parse_string_raw,
+        list_raw,
         parse_symbol_raw,
     ))
     .parse(input)
@@ -649,6 +663,178 @@ mod tests {
         assert_eq!(
             parse_expr("(+1)"),
             Ok(("", Expr::List(vec![Expr::Number(1.0)])))
+        );
+    }
+
+    // Tests for quoted expressions
+    #[test]
+    fn test_parse_quoted_symbol() {
+        init_test_logging();
+        assert_eq!(
+            parse_expr("'foo"),
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("quote".to_string()),
+                    Expr::Symbol("foo".to_string())
+                ])
+            ))
+        );
+        assert_eq!(
+            parse_expr("  'bar  "), // With surrounding whitespace
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("quote".to_string()),
+                    Expr::Symbol("bar".to_string())
+                ])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_quoted_number() {
+        init_test_logging();
+        assert_eq!(
+            parse_expr("'123"),
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("quote".to_string()),
+                    Expr::Number(123.0)
+                ])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_quoted_string() {
+        init_test_logging();
+        assert_eq!(
+            parse_expr("'\"hello world\""),
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("quote".to_string()),
+                    Expr::String("hello world".to_string())
+                ])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_quoted_list() {
+        init_test_logging();
+        assert_eq!(
+            parse_expr("'(a b c)"),
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("quote".to_string()),
+                    Expr::List(vec![
+                        Expr::Symbol("a".to_string()),
+                        Expr::Symbol("b".to_string()),
+                        Expr::Symbol("c".to_string())
+                    ])
+                ])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_quoted_empty_list() {
+        init_test_logging();
+        assert_eq!(
+            parse_expr("'()"),
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("quote".to_string()),
+                    Expr::List(vec![])
+                ])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_double_quote() {
+        init_test_logging();
+        // ''foo  is (quote (quote foo))
+        assert_eq!(
+            parse_expr("''foo"),
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("quote".to_string()),
+                    Expr::List(vec![
+                        Expr::Symbol("quote".to_string()),
+                        Expr::Symbol("foo".to_string())
+                    ])
+                ])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_quote_with_internal_whitespace() {
+        init_test_logging();
+        // '  foo should parse as (quote foo)
+        assert_eq!(
+            parse_expr("'  foo"),
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("quote".to_string()),
+                    Expr::Symbol("foo".to_string())
+                ])
+            ))
+        );
+        // '  (a b) should parse as (quote (a b))
+        assert_eq!(
+            parse_expr("'  (a b)"),
+            Ok((
+                "",
+                Expr::List(vec![
+                    Expr::Symbol("quote".to_string()),
+                    Expr::List(vec![
+                        Expr::Symbol("a".to_string()),
+                        Expr::Symbol("b".to_string())
+                    ])
+                ])
+            ))
+        );
+    }
+
+    #[test]
+    fn test_parse_quoted_list_with_quoted_element() {
+        init_test_logging();
+        // '(a 'b c) should parse as (quote (a (quote b) c))
+        let expected = Expr::List(vec![
+            Expr::Symbol("quote".to_string()),
+            Expr::List(vec![
+                Expr::Symbol("a".to_string()),
+                Expr::List(vec![
+                    Expr::Symbol("quote".to_string()),
+                    Expr::Symbol("b".to_string()),
+                ]),
+                Expr::Symbol("c".to_string()),
+            ]),
+        ]);
+        assert_eq!(parse_expr("'(a 'b c)"), Ok(("", expected)));
+    }
+
+    #[test]
+    fn test_parse_quote_leaves_remaining_input() {
+        init_test_logging();
+        assert_eq!(
+            parse_expr("'foo bar"),
+            Ok((
+                "bar",
+                Expr::List(vec![
+                    Expr::Symbol("quote".to_string()),
+                    Expr::Symbol("foo".to_string())
+                ])
+            ))
         );
     }
 }
