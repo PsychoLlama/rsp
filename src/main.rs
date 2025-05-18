@@ -5,9 +5,7 @@ mod eval;
 mod parser; // Add parser module
 mod special_forms;
 mod cli; // Add cli module
-
-#[cfg(test)]
-mod test_utils;
+mod logging; // Add logging module
 
 use anyhow::Result;
 use clap::Parser; // Import the Parser trait
@@ -25,9 +23,7 @@ use std::rc::Rc; // For Rc::clone on environment
 #[tracing::instrument]
 fn main() -> Result<()> {
     // Initialize tracing subscriber
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
+    crate::logging::init_logging();
 
     info!("Starting Lisp interpreter");
 

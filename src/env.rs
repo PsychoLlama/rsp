@@ -12,6 +12,15 @@ pub struct Environment {
 }
 
 impl Environment {
+    /// Creates a new, empty root environment without any prelude functions.
+    pub fn new() -> Rc<RefCell<Self>> {
+        debug!("Creating new empty root environment");
+        Rc::new(RefCell::new(Environment {
+            bindings: HashMap::new(),
+            outer: None,
+        }))
+    }
+
     /// Creates a new, empty root environment and populates it with prelude functions.
     pub fn new_with_prelude() -> Rc<RefCell<Self>> {
         debug!("Creating new root environment with prelude");
@@ -91,20 +100,20 @@ impl Environment {
 mod tests {
     use super::*;
     use crate::ast::Expr;
-    use crate::test_utils::setup_tracing; // Use shared setup_tracing
+    use crate::logging::init_test_logging; // Use new logging setup
 
     #[test]
     fn define_and_get_in_root_env() {
-        setup_tracing();
-        let env = Environment::new_with_prelude(); // Use new_with_prelude for consistency if tests might rely on prelude
+        init_test_logging();
+        let env = Environment::new(); // Test with a blank environment
         env.borrow_mut().define("x".to_string(), Expr::Number(10.0));
         assert_eq!(env.borrow().get("x"), Some(Expr::Number(10.0)));
     }
 
     #[test]
     fn get_from_outer_env() {
-        setup_tracing();
-        let outer_env = Environment::new_with_prelude();
+        init_test_logging();
+        let outer_env = Environment::new();
         outer_env
             .borrow_mut()
             .define("x".to_string(), Expr::Number(10.0));
@@ -115,8 +124,8 @@ mod tests {
 
     #[test]
     fn define_in_inner_shadows_outer() {
-        setup_tracing();
-        let outer_env = Environment::new_with_prelude();
+        init_test_logging();
+        let outer_env = Environment::new();
         outer_env
             .borrow_mut()
             .define("x".to_string(), Expr::Number(10.0));
@@ -133,15 +142,15 @@ mod tests {
 
     #[test]
     fn get_undefined_variable() {
-        setup_tracing();
-        let env = Environment::new_with_prelude();
+        init_test_logging();
+        let env = Environment::new();
         assert_eq!(env.borrow().get("non_existent"), None);
     }
 
     #[test]
     fn redefine_variable_in_same_env() {
-        setup_tracing();
-        let env = Environment::new_with_prelude();
+        init_test_logging();
+        let env = Environment::new();
         env.borrow_mut().define("x".to_string(), Expr::Number(10.0));
         env.borrow_mut().define("x".to_string(), Expr::Number(20.0)); // Redefine
         assert_eq!(env.borrow().get("x"), Some(Expr::Number(20.0)));

@@ -251,12 +251,12 @@ mod tests {
     use crate::ast::{Expr, LispFunction, NativeFunction}; // Added NativeFunction
     use crate::env::Environment;
     use crate::eval::{LispError, eval}; // Need main eval for testing integration
-    use crate::test_utils::setup_tracing; // Use shared setup_tracing
+    use crate::logging::init_test_logging; // Use new logging setup
     use std::rc::Rc; // For Environment
 
     #[test]
     fn eval_let_binding() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let x 10)
         let let_expr = Expr::List(vec![
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn eval_let_binding_evaluates_value() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         env.borrow_mut().define("y".to_string(), Expr::Number(5.0));
         // (let x y) where y is 5
@@ -291,7 +291,7 @@ mod tests {
 
     #[test]
     fn eval_let_arity_error_too_few_args() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let x) - missing value
         let let_expr = Expr::List(vec![
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn eval_let_arity_error_too_many_args() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let x 10 20) - extra argument
         let let_expr = Expr::List(vec![
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn eval_let_type_error_non_symbol_for_var_name() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let 10 20) - first arg (var name) is not a symbol
         let let_expr = Expr::List(vec![
@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn eval_let_error_binding_reserved_keyword_let() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let let 10)
         let expr = Expr::List(vec![
@@ -362,7 +362,7 @@ mod tests {
 
     #[test]
     fn eval_let_error_binding_reserved_keyword_quote() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let quote 10)
         let expr = Expr::List(vec![
@@ -379,7 +379,7 @@ mod tests {
     // Tests for eval_fn
     #[test]
     fn eval_fn_creates_function() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (fn (x y) x)
         let fn_expr_ast = Expr::List(vec![
@@ -410,7 +410,7 @@ mod tests {
 
     #[test]
     fn eval_fn_empty_params() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (fn () 10)
         let fn_expr_ast = Expr::List(vec![
@@ -430,7 +430,7 @@ mod tests {
 
     #[test]
     fn eval_fn_arity_error_too_few_args() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (fn (x)) - missing body
         let fn_expr_ast = Expr::List(vec![
@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn eval_fn_arity_error_too_many_args() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (fn (x) x x) - extra argument
         let fn_expr_ast = Expr::List(vec![
@@ -466,7 +466,7 @@ mod tests {
 
     #[test]
     fn eval_fn_param_not_a_list() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (fn x x) - first arg (params) is not a list
         let fn_expr_ast = Expr::List(vec![
@@ -485,7 +485,7 @@ mod tests {
 
     #[test]
     fn eval_fn_param_list_contains_non_symbol() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (fn (x 10) x) - param list contains a number
         let fn_expr_ast = Expr::List(vec![
@@ -504,7 +504,7 @@ mod tests {
 
     #[test]
     fn eval_fn_param_is_reserved_keyword() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (fn (let) let)
         let fn_expr_ast = Expr::List(vec![
@@ -521,7 +521,7 @@ mod tests {
     // Tests for 'quote' special form (invoked via eval)
     #[test]
     fn eval_quote_symbol() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (quote x)
         let expr = Expr::List(vec![
@@ -533,7 +533,7 @@ mod tests {
 
     #[test]
     fn eval_quote_number() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (quote 10)
         let expr = Expr::List(vec![
@@ -545,7 +545,7 @@ mod tests {
 
     #[test]
     fn eval_quote_list() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (quote (1 2))
         let inner_list = vec![Expr::Number(1.0), Expr::Number(2.0)];
@@ -558,7 +558,7 @@ mod tests {
 
     #[test]
     fn eval_quote_empty_list_as_arg() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (quote ())
         let expr = Expr::List(vec![
@@ -570,7 +570,7 @@ mod tests {
 
     #[test]
     fn eval_quote_nested_list() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (quote (a (b c)))
         let nested_list = Expr::List(vec![
@@ -589,7 +589,7 @@ mod tests {
 
     #[test]
     fn eval_quote_arity_error_no_args() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (quote)
         let expr = Expr::List(vec![Expr::Symbol("quote".to_string())]);
@@ -603,7 +603,7 @@ mod tests {
 
     #[test]
     fn eval_quote_arity_error_too_many_args() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (quote x y)
         let expr = Expr::List(vec![
@@ -622,7 +622,7 @@ mod tests {
     // Tests for 'if' special form
     #[test]
     fn eval_if_true_condition() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (if true 10 20)
         let expr = Expr::List(vec![
@@ -636,7 +636,7 @@ mod tests {
 
     #[test]
     fn eval_if_false_condition() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (if false 10 20)
         let expr = Expr::List(vec![
@@ -650,7 +650,7 @@ mod tests {
 
     #[test]
     fn eval_if_nil_condition() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (if nil 10 20)
         let expr = Expr::List(vec![
@@ -664,7 +664,7 @@ mod tests {
 
     #[test]
     fn eval_if_truthy_number_condition() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (if 0 10 20) ; 0 is truthy in this Lisp
         let expr = Expr::List(vec![
@@ -678,7 +678,7 @@ mod tests {
 
     #[test]
     fn eval_if_truthy_list_condition() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (if () 10 20) ; empty list is truthy
         let expr = Expr::List(vec![
@@ -692,7 +692,7 @@ mod tests {
     
     #[test]
     fn eval_if_false_condition_no_else_branch() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (if false 10)
         let expr = Expr::List(vec![
@@ -705,7 +705,7 @@ mod tests {
 
     #[test]
     fn eval_if_true_condition_no_else_branch() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (if true 10)
         let expr = Expr::List(vec![
@@ -718,7 +718,7 @@ mod tests {
 
     #[test]
     fn eval_if_condition_evaluates() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         env.borrow_mut().define("cond-var".to_string(), Expr::Bool(true));
         // (if cond-var 10 20)
@@ -733,7 +733,7 @@ mod tests {
 
     #[test]
     fn eval_if_arity_error_too_few_args() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (if true)
         let expr = Expr::List(vec![
@@ -750,7 +750,7 @@ mod tests {
 
     #[test]
     fn eval_if_arity_error_too_many_args() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (if true 10 20 30)
         let expr = Expr::List(vec![
@@ -772,7 +772,7 @@ mod tests {
     // This test defines 'then-val' but not 'else-val'. If 'else-val' were evaluated, it would error.
     #[test]
     fn eval_if_short_circuit_then_branch() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         env.borrow_mut().define("then-val".to_string(), Expr::Number(100.0));
         // (if true then-val else-val) ; else-val is undefined
@@ -788,7 +788,7 @@ mod tests {
     // This test defines 'else-val' but not 'then-val'. If 'then-val' were evaluated, it would error.
     #[test]
     fn eval_if_short_circuit_else_branch() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         env.borrow_mut().define("else-val".to_string(), Expr::Number(200.0));
         // (if false then-val else-val) ; then-val is undefined
@@ -807,8 +807,8 @@ mod tests {
 
     #[test]
     fn test_native_add_simple() {
-        setup_tracing();
-        let env = Environment::new();
+        init_test_logging();
+        let env = Environment::new(); // Use blank env for this specific test setup
         env.borrow_mut().define(
             "+".to_string(),
             Expr::NativeFunction(NativeFunction {
@@ -827,8 +827,8 @@ mod tests {
 
     #[test]
     fn test_native_add_multiple_args() {
-        setup_tracing();
-        let env = Environment::new();
+        init_test_logging();
+        let env = Environment::new(); // Use blank env
         env.borrow_mut().define(
             "+".to_string(),
             Expr::NativeFunction(NativeFunction {
@@ -849,8 +849,8 @@ mod tests {
 
     #[test]
     fn test_native_add_no_args() {
-        setup_tracing();
-        let env = Environment::new();
+        init_test_logging();
+        let env = Environment::new(); // Use blank env
         env.borrow_mut().define(
             "+".to_string(),
             Expr::NativeFunction(NativeFunction {
@@ -865,8 +865,8 @@ mod tests {
 
     #[test]
     fn test_native_add_type_error() {
-        setup_tracing();
-        let env = Environment::new();
+        init_test_logging();
+        let env = Environment::new(); // Use blank env
         env.borrow_mut().define(
             "+".to_string(),
             Expr::NativeFunction(NativeFunction {
@@ -891,8 +891,8 @@ mod tests {
 
     #[test]
     fn test_native_equals_true() {
-        setup_tracing();
-        let env = Environment::new();
+        init_test_logging();
+        let env = Environment::new(); // Use blank env
         env.borrow_mut().define(
             "=".to_string(),
             Expr::NativeFunction(NativeFunction {
@@ -911,8 +911,8 @@ mod tests {
 
     #[test]
     fn test_native_equals_false() {
-        setup_tracing();
-        let env = Environment::new();
+        init_test_logging();
+        let env = Environment::new(); // Use blank env
         env.borrow_mut().define(
             "=".to_string(),
             Expr::NativeFunction(NativeFunction {
@@ -931,8 +931,8 @@ mod tests {
     
     #[test]
     fn test_native_equals_multiple_true() {
-        setup_tracing();
-        let env = Environment::new();
+        init_test_logging();
+        let env = Environment::new(); // Use blank env
         env.borrow_mut().define(
             "=".to_string(),
             Expr::NativeFunction(NativeFunction {
@@ -953,8 +953,8 @@ mod tests {
 
     #[test]
     fn test_native_equals_multiple_false() {
-        setup_tracing();
-        let env = Environment::new();
+        init_test_logging();
+        let env = Environment::new(); // Use blank env
         env.borrow_mut().define(
             "=".to_string(),
             Expr::NativeFunction(NativeFunction {
@@ -975,8 +975,8 @@ mod tests {
 
     #[test]
     fn test_native_equals_arity_error_too_few() {
-        setup_tracing();
-        let env = Environment::new();
+        init_test_logging();
+        let env = Environment::new(); // Use blank env
         env.borrow_mut().define(
             "=".to_string(),
             Expr::NativeFunction(NativeFunction {
@@ -999,8 +999,8 @@ mod tests {
 
     #[test]
     fn test_native_equals_type_error() {
-        setup_tracing();
-        let env = Environment::new();
+        init_test_logging();
+        let env = Environment::new(); // Use blank env
         env.borrow_mut().define(
             "=".to_string(),
             Expr::NativeFunction(NativeFunction {
@@ -1026,7 +1026,7 @@ mod tests {
     // Tests for native_multiply
     #[test]
     fn test_native_multiply_simple() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new_with_prelude(); // Uses prelude which now includes *
         // (* 2 3)
         let expr = Expr::List(vec![
@@ -1039,7 +1039,7 @@ mod tests {
 
     #[test]
     fn test_native_multiply_multiple_args() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new_with_prelude();
         // (* 1 2 3 4)
         let expr = Expr::List(vec![
@@ -1054,7 +1054,7 @@ mod tests {
 
     #[test]
     fn test_native_multiply_no_args() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new_with_prelude();
         // (*)
         let expr = Expr::List(vec![Expr::Symbol("*".to_string())]);
@@ -1063,7 +1063,7 @@ mod tests {
     
     #[test]
     fn test_native_multiply_one_arg() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new_with_prelude();
         // (* 5)
         let expr = Expr::List(vec![
@@ -1075,7 +1075,7 @@ mod tests {
 
     #[test]
     fn test_native_multiply_with_zero() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new_with_prelude();
         // (* 5 0 2)
         let expr = Expr::List(vec![
@@ -1089,7 +1089,7 @@ mod tests {
 
     #[test]
     fn test_native_multiply_type_error() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new_with_prelude();
         // (* 2 true)
         let expr = Expr::List(vec![
