@@ -37,12 +37,10 @@ impl Environment {
             ("+", native_add),
             ("=", native_equals),
             ("*", native_multiply),
-            // Namespaced-like versions (parsed as single symbols)
-            ("math/+", native_add),
-            ("math/=", native_equals),
-            ("math/*", native_multiply),
             // Other builtins
             ("println", crate::engine::builtins::native_println),
+            // Note: "math/+" etc. are no longer defined globally here.
+            // They are resolved by looking up "math" then "+" within it.
         ];
 
         const MATH_FUNCTION_NAMES: &[&str] = &["+", "=", "*"]; // These are the short names for the math module's internal env
