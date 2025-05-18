@@ -56,38 +56,61 @@ pub(crate) fn evaluate_source( // Made pub(crate) to be accessible by the repl m
         }
 
         match parse_expr(current_input) {
-            Ok((remaining, ast)) => {
-                expressions_evaluated = true;
-                info!(parsed_ast = ?ast, "Successfully parsed expression from {}", source_name);
-                match eval(&ast, Rc::clone(&env)) {
-                    Ok(result) => {
-                        info!(evaluation_result = ?result, "Evaluation successful in {}", source_name);
-                        last_result = Some(result);
+            Ok((remaining, ast_option)) => {
+                if let Some(ast) = ast_option {
+                    expressions_evaluated = true;
+                    info!(parsed_ast = ?ast, "Successfully parsed expression from {}", source_name);
+                    match eval(&ast, Rc::clone(&env)) {
+                        Ok(result) => {
+                            info!(evaluation_result = ?result, "Evaluation successful in {}", source_name);
+                            last_result = Some(result);
+                        }
+                        Err(e) => {
+                            let err_msg = format!("Evaluation Error in {}: {}", source_name, e);
+                            info!(evaluation_error = %e, "Evaluation error from {}", source_name);
+                            return Err(err_msg); // Stop on first evaluation error
+                        }
                     }
-                    Err(e) => {
-                        let err_msg = format!("Evaluation Error in {}: {}", source_name, e);
-                        info!(evaluation_error = %e, "Evaluation error from {}", source_name);
-                        return Err(err_msg); // Stop on first evaluation error
+                } else {
+                    // No actual expression was parsed (e.g., only comments or whitespace).
+                    // If remaining is the same as current_input, and current_input is not empty,
+                    // it implies that space_or_comment0 consumed nothing, which might be an issue
+                    // if current_input was *only* a comment that parse_expr should have consumed entirely.
+                    // However, with `preceded(space_or_comment0, opt(terminated(expr_recursive_impl, space_or_comment0)))`,
+                    // `remaining` should be the input *after* the initial `space_or_comment0`.
+                    // If `ast_option` is None, it means the `opt(...)` part returned None.
+                    // This is the correct behavior for comment-only or empty lines after initial whitespace.
+                    if remaining.is_empty() && current_input.trim().is_empty() && !expressions_evaluated {
+                        // Input was effectively empty (or only comments/whitespace) from the start.
+                        // No actual error, just nothing to do.
                     }
+                    // If remaining is not empty but ast_option is None, it means the rest of the input
+                    // after initial whitespace/comments did not form a valid expression.
+                    // This is treated as a parsing error by the logic below if not all input is consumed.
                 }
                 current_input = remaining;
             }
-            Err(e) => {
+            Err(e) => { // This is a hard parsing error from nom
                 match e {
                     nom::Err::Incomplete(_) => {
                         let err_msg = format!("Parsing incomplete in {}: More input needed.", source_name);
                         info!(parsing_error = %err_msg, input_at_error = %current_input, "Parsing failed in {}", source_name);
                         return Err(err_msg);
                     }
-                    nom::Err::Error(inner_e) => {
+                    nom::Err::Error(ref inner_e) => { // Use ref inner_e to avoid moving
+                        // If we have already parsed some expressions and the rest is empty or whitespace,
+                        // it's not an error. This check is tricky with the new Option<Expr>.
+                        // The `opt` in parse_expr should handle cases where the remaining input is just whitespace.
+                        // An error here means `expr_recursive_impl` failed on non-empty, non-comment input.
                         if expressions_evaluated && current_input.trim().is_empty() {
-                            break; // Successfully parsed all available expressions
+                             // This case might be less relevant now as parse_expr(whitespace) -> Ok(("", None))
+                            break; 
                         }
                         let err_msg = format!("Parsing Error in {}: {:?}", source_name, inner_e);
                         info!(parsing_error = %err_msg, input_at_error = %current_input, "Parsing failed in {}", source_name);
                         return Err(err_msg);
                     }
-                    nom::Err::Failure(inner_e) => {
+                    nom::Err::Failure(ref inner_e) => { // Use ref inner_e
                         let err_msg = format!("Parsing Error in {}: {:?}", source_name, inner_e);
                         info!(parsing_error = %err_msg, input_at_error = %current_input, "Parsing failed critically in {}", source_name);
                         return Err(err_msg);
