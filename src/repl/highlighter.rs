@@ -114,8 +114,8 @@ impl ReplHelper {
 }
 
 impl Completer for ReplHelper {
-    // Use the alias CompletionCandidate which refers to rustyline::completion::Candidate struct
-    type Candidate = CompletionCandidate; 
+    // Directly use the struct type. The import alias `CompletionCandidate` remains but will be unused here.
+    type Candidate = rustyline::completion::Candidate; 
 
     fn complete(
         &self,
