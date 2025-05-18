@@ -1,8 +1,8 @@
 # rsp - A Lisp-like Interpreter in Rust
 
-This project began as an exploration with [Aider](https://aider.chat/) to test the advanced capabilities of Google's Gemini 1.5 Pro model. The challenge was to see if an AI could successfully design and implement a functional programming language from a high-level concept, a task where previous models often struggled. Gemini 1.5 Pro demonstrated a remarkable ability to handle this complex, iterative development process.
+**This project is an experiment in AI-assisted development, not an attempt to create a production-ready Lisp interpreter.** Its primary goal is to push the capabilities of AI models, specifically Google's Gemini 1.5 Pro, by tasking them with a complex, iterative software engineering challenge: designing and implementing a programming language.
 
-This interpreter is a proof of concept and a testament to the progress in AI-assisted software development. The entirety of this project, including the language design, interpreter, and built-in functionalities, was generated through interaction with the AI.
+Remarkably, **100% of the code in this repository, including the language design, interpreter, and all features, was written by the AI** through interaction with [Aider](https://aider.chat/). This serves as a demonstration of current AI capabilities in software development.
 
 ## Language Features
 
