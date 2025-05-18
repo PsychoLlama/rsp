@@ -12,6 +12,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 once_cell = "1.19.0" # Added for lazy static
 rustyline = "14.0.0" # For REPL line editing, history, and signal handling
+dirs = "5.0.1" # For finding standard directory paths
 
 [dev-dependencies]
 tempfile = "3.10.1"
