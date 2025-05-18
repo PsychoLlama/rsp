@@ -2,10 +2,9 @@ pub mod log;
 pub mod math;
 pub mod special_forms;
 
-use crate::engine::ast::Expr;
 // LispFunction is not used directly here anymore
 // use crate::engine::env::Environment; // No longer needed here
-use crate::engine::eval::LispError; // LispError might be needed if other fns are added
+// LispError might be needed if other fns are added
 // std::cell::RefCell and std::rc::Rc are no longer needed here
 // use std::cell::RefCell;
 // use std::rc::Rc;
