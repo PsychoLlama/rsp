@@ -92,12 +92,11 @@ impl Highlighter for LispHighlighter {
             if !found_match_at_current_pos {
                 // No token matched at current_pos. Advance by one char, append as plain.
                 // This part handles symbols or any other text not caught by specific regexes.
-                let mut char_end = current_pos;
-                if let Some((idx, _)) = line[current_pos..].char_indices().nth(1) {
-                    char_end = current_pos + idx;
+                let char_end = if let Some((idx, _)) = line[current_pos..].char_indices().nth(1) {
+                    current_pos + idx
                 } else {
-                    char_end = line.len();
-                }
+                    line.len()
+                };
                 highlighted_line.push_str(&line[current_pos..char_end]);
                 current_pos = char_end;
             }
