@@ -748,8 +748,8 @@ mod tests {
         // Given the new logic, eval("my-var") -> Number(123), then it tries get("my-var") as module name.
         // If "my-var" is not a global module, it will be UndefinedSymbol("my-var/foo").
         // If "my-var" *was* a global module (but it's not), it would be NotAModule.
-        // Let's assume the most likely path: "my-var" is not a global module name.
+        // The current logic correctly identifies that 'my-var' is bound but not a module.
         let result = eval(&call_expr, Rc::clone(&env));
-        assert!(matches!(result, Err(LispError::UndefinedSymbol(s)) if s == "my-var/foo"));
+        assert!(matches!(result, Err(LispError::NotAModule(s)) if s == "my-var"));
     }
 }

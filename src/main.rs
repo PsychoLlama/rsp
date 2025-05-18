@@ -41,41 +41,74 @@ fn main() -> Result<()> {
             info!(run_args = ?run_args, "Executing Run command");
             if let Some(expr_str) = run_args.expr {
                 info!(expression = %expr_str, "Received expression string for parsing and evaluation");
-                match parse_expr(&expr_str) {
-                    Ok((remaining_input, ast)) => {
-                        if !remaining_input.trim().is_empty() {
-                            eprintln!(
-                                "Error: Unexpected input found after expression: '{}'",
-                                remaining_input
-                            );
-                        } else {
-                            info!(parsed_ast = ?ast, "Successfully parsed expression");
-                            let root_env = Environment::new_with_prelude();
-                            match eval(&ast, root_env) {
+                let root_env = Environment::new_with_prelude();
+                let mut current_input: &str = &expr_str;
+                let mut last_result: Option<Expr> = None;
+                let mut expressions_evaluated = false;
+
+                loop {
+                    current_input = current_input.trim_start();
+                    if current_input.is_empty() {
+                        break; // All input processed
+                    }
+
+                    match parse_expr(current_input) {
+                        Ok((remaining, ast)) => {
+                            expressions_evaluated = true;
+                            info!(parsed_ast = ?ast, "Successfully parsed expression from string");
+                            match eval(&ast, Rc::clone(&root_env)) {
                                 Ok(result) => {
                                     info!(evaluation_result = ?result, "Evaluation successful");
-                                    println!("{:?}", result);
+                                    last_result = Some(result);
                                 }
                                 Err(e) => {
-                                    info!(evaluation_error = %e, "Evaluation error");
+                                    info!(evaluation_error = %e, "Evaluation error from string expression");
                                     eprintln!("Evaluation Error: {}", e);
+                                    last_result = None; // Clear last result on error
+                                    return Ok(()); // Stop on first evaluation error
                                 }
                             }
+                            current_input = remaining;
+                        }
+                        Err(e) => {
+                            let err_msg = match e {
+                                nom::Err::Incomplete(_) => {
+                                    "Parsing incomplete: More input needed.".to_string()
+                                }
+                                nom::Err::Error(inner_e) | nom::Err::Failure(inner_e) => {
+                                    // Check if the error occurred on an empty or whitespace-only remaining string.
+                                    // If so, it might not be a "real" error but just the end of input.
+                                    if current_input.trim().is_empty() && !expressions_evaluated {
+                                        // No valid expressions were found at all.
+                                        "Error: No valid expressions found in input string.".to_string()
+                                    } else if current_input.trim().is_empty() && expressions_evaluated {
+                                        // Successfully parsed some, now at the end. Not an error.
+                                        break; 
+                                    } else {
+                                        format!("Parsing Error: {:?}", inner_e)
+                                    }
+                                }
+                            };
+                            // Only print error if it's not just the end of input after successful parses.
+                            if !(current_input.trim().is_empty() && expressions_evaluated && matches!(e, nom::Err::Error(_))) {
+                                info!(parsing_error = %err_msg, "Parsing failed in string expression");
+                                eprintln!("{}", err_msg);
+                                last_result = None; // Clear last result on error
+                            }
+                            return Ok(()); // Stop on parsing error or end of input
                         }
                     }
-                    Err(e) => {
-                        let err_msg = match e {
-                            nom::Err::Incomplete(_) => {
-                                "Parsing incomplete: More input needed.".to_string()
-                            }
-                            nom::Err::Error(e) | nom::Err::Failure(e) => {
-                                format!("Parsing Error: {:?}", e)
-                            }
-                        };
-                        info!(parsing_error = %err_msg, "Parsing failed");
-                        eprintln!("{}", err_msg);
-                    }
                 }
+
+                if let Some(final_result) = last_result {
+                    println!("{:?}", final_result);
+                } else if !expressions_evaluated && !expr_str.trim().is_empty() {
+                    // This case might be hit if the string was not empty but contained no parsable expressions.
+                    // The parser error would have been handled above.
+                    // If it was empty to begin with, nothing is printed, which is fine.
+                }
+
+
             } else if let Some(file_path) = run_args.file {
                 info!(file_path = %file_path.display(), "Received file path for execution");
                 match fs::read_to_string(&file_path) {
