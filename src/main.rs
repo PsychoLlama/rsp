@@ -7,6 +7,7 @@ use clap::Parser;
 use tracing::info;
 
 use crate::cli::{Cli, Commands};
+use crate::engine::ast::Expr; // Added import for Expr
 use crate::engine::env::Environment;
 use crate::engine::eval::eval;
 use crate::engine::parser::parse_expr;
