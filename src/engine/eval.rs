@@ -105,27 +105,65 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                         Expr::Symbol(s) => {
                             if s.contains('/') {
                                 let parts: Vec<&str> = s.splitn(2, '/').collect();
-                                // Ensure module_name and member_name are not empty for a valid module path.
                                 if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() {
-                                    let module_name = parts[0];
+                                    let module_candidate_name = parts[0];
                                     let member_name = parts[1];
-                                    trace!(module_name, member_name, "Attempting to resolve symbol as module/member path");
-                                    match env.borrow().get(module_name) {
-                                        Some(Expr::Module(lisp_module)) => {
+
+                                    // Attempt 1: Evaluate module_candidate_name as a variable.
+                                    // If it resolves to a module, use that.
+                                    match eval(&Expr::Symbol(module_candidate_name.to_string()), Rc::clone(&env)) {
+                                        Ok(Expr::Module(lisp_module)) => {
+                                            trace!(variable_name = %module_candidate_name, member_name, "Variable resolved to module. Looking up member.");
                                             match lisp_module.env.borrow().get(member_name) {
                                                 Some(member_expr) => Ok(member_expr),
                                                 None => Err(LispError::MemberNotFoundInModule {
-                                                    module: module_name.to_string(),
+                                                    module: format!("variable '{}' (bound to module '{}')", module_candidate_name, lisp_module.path.display()),
                                                     member: member_name.to_string(),
                                                 }),
                                             }
                                         }
-                                        Some(_) => Err(LispError::NotAModule(module_name.to_string())),
-                                        None => Err(LispError::UndefinedSymbol(module_name.to_string())),
+                                        Ok(other_value) => {
+                                            // Variable resolved, but not to a module. This is an error for path-like access.
+                                            // Or, it could be that module_candidate_name is a direct module name like "math"
+                                            // and not a variable. Fall through to Attempt 2.
+                                            trace!(variable_name = %module_candidate_name, value = ?other_value, "Variable did not resolve to a module or was not found. Trying as direct module name.");
+                                            // Attempt 2: Treat module_candidate_name as a direct module name (string).
+                                            match env.borrow().get(module_candidate_name) {
+                                                Some(Expr::Module(lisp_module)) => {
+                                                    trace!(module_name = %module_candidate_name, member_name, "Found direct module. Looking up member.");
+                                                    match lisp_module.env.borrow().get(member_name) {
+                                                        Some(member_expr) => Ok(member_expr),
+                                                        None => Err(LispError::MemberNotFoundInModule {
+                                                            module: module_candidate_name.to_string(),
+                                                            member: member_name.to_string(),
+                                                        }),
+                                                    }
+                                                }
+                                                Some(_) => Err(LispError::NotAModule(module_candidate_name.to_string())),
+                                                None => Err(LispError::UndefinedSymbol(s.clone())), // Original 'x/member' symbol is problematic
+                                            }
+                                        }
+                                        Err(LispError::UndefinedSymbol(_)) => {
+                                            // module_candidate_name is not a defined variable. Try as direct module name.
+                                            trace!(module_name = %module_candidate_name, member_name, "Symbol for module part not found. Trying as direct module name.");
+                                            match env.borrow().get(module_candidate_name) {
+                                                Some(Expr::Module(lisp_module)) => {
+                                                    match lisp_module.env.borrow().get(member_name) {
+                                                        Some(member_expr) => Ok(member_expr),
+                                                        None => Err(LispError::MemberNotFoundInModule {
+                                                            module: module_candidate_name.to_string(),
+                                                            member: member_name.to_string(),
+                                                        }),
+                                                    }
+                                                }
+                                                Some(_) => Err(LispError::NotAModule(module_candidate_name.to_string())),
+                                                None => Err(LispError::UndefinedSymbol(s.clone())), // Original 'module/member' symbol is problematic
+                                            }
+                                        }
+                                        Err(e) => Err(e), // Other evaluation error for the module candidate part
                                     }
                                 } else {
-                                    // Symbol contains '/' but not in valid module/member format (e.g., "/", "/foo", "foo/", "foo//bar").
-                                    // Treat as a regular symbol.
+                                    // Symbol contains '/' but not in valid module/member format. Treat as regular symbol.
                                     trace!(symbol_name = %s, "Symbol contains '/' but not a valid module/member path, evaluating as regular symbol");
                                     eval(first_form, Rc::clone(&env))
                                 }
@@ -636,5 +674,82 @@ mod tests {
         // Call g
         let call_g_expr = Expr::List(vec![Expr::Symbol("g".to_string())]);
         assert_eq!(eval(&call_g_expr, env), Ok(Expr::Number(20.0))); // g calls the f from its closure, which has been updated
+    }
+
+    #[test]
+    fn eval_call_member_on_variable_bound_to_module() {
+        init_test_logging();
+        let env = Environment::new_with_prelude(); // Prelude includes 'math', 'string' modules
+
+        // (let my-math math)
+        let let_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Symbol("my-math".to_string()),
+            Expr::Symbol("math".to_string()), // 'math' is a global symbol bound to the math module
+        ]);
+        eval(&let_expr, Rc::clone(&env)).expect("Failed to let-bind my-math to math module");
+
+        // (my-math/+ 10 5)
+        let call_expr = Expr::List(vec![
+            Expr::Symbol("my-math/+".to_string()),
+            Expr::Number(10.0),
+            Expr::Number(5.0),
+        ]);
+        assert_eq!(eval(&call_expr, Rc::clone(&env)), Ok(Expr::Number(15.0)));
+
+        // (let s (require 'string))
+        let let_s_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Symbol("s".to_string()),
+            Expr::List(vec![
+                Expr::Symbol("require".to_string()),
+                Expr::List(vec![ // 'string
+                    Expr::Symbol("quote".to_string()),
+                    Expr::Symbol("string".to_string()),
+                ]),
+            ]),
+        ]);
+        eval(&let_s_expr, Rc::clone(&env)).expect("Failed to let-bind s to string module via require");
+        
+        // (s/concat "hello" " " "world")
+        let call_s_concat_expr = Expr::List(vec![
+            Expr::Symbol("s/concat".to_string()),
+            Expr::String("hello".to_string()),
+            Expr::String(" ".to_string()),
+            Expr::String("world".to_string()),
+        ]);
+        assert_eq!(eval(&call_s_concat_expr, Rc::clone(&env)), Ok(Expr::String("hello world".to_string())));
+    }
+
+    #[test]
+    fn eval_call_member_on_variable_not_a_module() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+
+        // (let my-var 123)
+        let let_expr = Expr::List(vec![
+            Expr::Symbol("let".to_string()),
+            Expr::Symbol("my-var".to_string()),
+            Expr::Number(123.0),
+        ]);
+        eval(&let_expr, Rc::clone(&env)).expect("Failed to let-bind my-var");
+
+        // (my-var/foo)
+        let call_expr = Expr::List(vec![
+            Expr::Symbol("my-var/foo".to_string()),
+        ]);
+        
+        // This should fail because 'my-var' is a number, not a module.
+        // The specific error depends on the resolution path.
+        // If 'my-var' is evaluated first, it's not a module.
+        // If 'my-var' is treated as a module name, it's not found or not a module.
+        // The refined logic should lead to NotAModule if 'my-var' is found but isn't a module.
+        // Or UndefinedSymbol for "my-var/foo" if "my-var" is not a module and not a global module name.
+        // Given the new logic, eval("my-var") -> Number(123), then it tries get("my-var") as module name.
+        // If "my-var" is not a global module, it will be UndefinedSymbol("my-var/foo").
+        // If "my-var" *was* a global module (but it's not), it would be NotAModule.
+        // Let's assume the most likely path: "my-var" is not a global module name.
+        let result = eval(&call_expr, Rc::clone(&env));
+        assert!(matches!(result, Err(LispError::UndefinedSymbol(s)) if s == "my-var/foo"));
     }
 }
