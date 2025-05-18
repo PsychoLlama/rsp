@@ -84,7 +84,7 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
         }
     };
 
-    debug!(path_specifier = ?path_specifier_expr, resolved_path = %canonical_path.display(), "Path for 'require'");
+    debug!(path_specifier = ?evaluated_arg, resolved_path = %canonical_path.display(), "Path for 'require'");
 
     {
         let cached_module = MODULE_CACHE.with(|cache_cell| {
