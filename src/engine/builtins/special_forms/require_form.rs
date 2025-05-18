@@ -21,19 +21,22 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
         return Err(LispError::ArityMismatch(msg));
     }
 
-    let path_specifier_expr = &args[0];
-    let module_name_key = match path_specifier_expr {
+    // The argument to 'require' should be evaluated to get the module name (string or symbol).
+    let unevaluated_arg = &args[0];
+    let evaluated_arg = main_eval(unevaluated_arg, Rc::clone(&_env))?;
+
+    let module_name_key = match evaluated_arg {
         Expr::String(s) => s.clone(),
         Expr::Symbol(s) => s.clone(),
         _ => {
             let msg = format!(
-                "'require' argument must be a string or symbol, found {:?}",
-                path_specifier_expr
+                "'require' argument must evaluate to a string or symbol, found {:?}",
+                evaluated_arg 
             );
             error!("{}", msg);
             return Err(LispError::TypeError {
                 expected: "String or Symbol path".to_string(),
-                found: format!("{:?}", path_specifier_expr),
+                found: format!("{:?}", evaluated_arg),
             });
         }
     };
