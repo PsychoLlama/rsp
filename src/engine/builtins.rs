@@ -230,7 +230,7 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
 
     // Check cache
     {
-        let cache = crate::MODULE_CACHE.lock().unwrap(); // Panics on poison, which is fine for now
+        let cache = crate::MODULE_CACHE.lock().unwrap(); 
         if let Some(cached_module) = cache.get(&canonical_path) {
             trace!(path = %canonical_path.display(), "Module found in cache");
             return Ok(cached_module.clone());
