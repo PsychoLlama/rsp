@@ -42,6 +42,8 @@ pub enum LispError {
     NotAModule(String),
     #[error("Member '{member}' not found in module '{module}'.")]
     MemberNotFoundInModule { module: String, member: String },
+    #[error("Division by zero: {0}")]
+    DivisionByZero(String),
     // Add more specific errors as the interpreter develops
 }
 

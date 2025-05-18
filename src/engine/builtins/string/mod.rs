@@ -164,6 +164,8 @@ mod tests {
     use crate::engine::eval::eval;
     use crate::engine::parser::parse_expr;
     use crate::logging::init_test_logging;
+    use std::rc::Rc; // Added import for tests
+    use std::cell::RefCell; // Added import for tests
 
     // Helper to evaluate a Lisp string in an environment
     fn eval_str(code: &str, env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
