@@ -63,12 +63,48 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
         }
         Expr::Symbol(s) => {
             debug!(env = ?env.borrow(), symbol_name = %s, "Evaluating Symbol");
-            if let Some(value) = env.borrow().get(s) {
-                trace!(symbol_name = %s, value = ?value, "Found symbol in environment");
-                Ok(value)
+            if s.contains('/') {
+                let parts: Vec<&str> = s.splitn(2, '/').collect();
+                if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() {
+                    let module_var_name = parts[0];
+                    let member_name = parts[1];
+
+                    match env.borrow().get(module_var_name) {
+                        Some(Expr::Module(lisp_module)) => {
+                            trace!(module_variable = %module_var_name, member_name, "Accessing member of module held by variable.");
+                            lisp_module.env.borrow().get(member_name).ok_or_else(|| {
+                                error!(module_name = %module_var_name, member_name, "Member not found in module.");
+                                LispError::MemberNotFoundInModule {
+                                    module: module_var_name.to_string(),
+                                    member: member_name.to_string(),
+                                }
+                            })
+                        }
+                        Some(other_expr) => {
+                            error!(variable_name = %module_var_name, value = ?other_expr, "Variable is not a module, cannot access member.");
+                            Err(LispError::NotAModule(module_var_name.to_string()))
+                        }
+                        None => {
+                            // If the module variable itself is not found, it's an UndefinedSymbol error for the module variable.
+                            error!(module_variable_name = %module_var_name, "Module variable not found for member access.");
+                            Err(LispError::UndefinedSymbol(module_var_name.to_string()))
+                        }
+                    }
+                } else {
+                    // Invalid format like "foo/" or "/bar", treat as a normal (likely undefined) symbol lookup.
+                    // This maintains consistency: if it's not a valid path, it's just a symbol.
+                    trace!(symbol_name = %s, "Symbol with '/' has invalid module/member format, treating as regular symbol.");
+                    env.borrow().get(s).ok_or_else(|| {
+                        error!(symbol_name = %s, "Undefined symbol (invalid path format) encountered");
+                        LispError::UndefinedSymbol(s.clone())
+                    })
+                }
             } else {
-                error!(symbol_name = %s, "Undefined symbol encountered");
-                Err(LispError::UndefinedSymbol(s.clone()))
+                // Regular symbol lookup (no '/')
+                env.borrow().get(s).ok_or_else(|| {
+                    error!(symbol_name = %s, "Undefined regular symbol encountered");
+                    LispError::UndefinedSymbol(s.clone())
+                })
             }
         }
         Expr::List(list) => {
@@ -754,5 +790,102 @@ mod tests {
         // The current logic correctly identifies that 'my-var' is bound but not a module.
         let result = eval(&call_expr, Rc::clone(&env));
         assert!(matches!(result, Err(LispError::NotAModule(s)) if s == "my-var"));
+    }
+
+    // Tests for module variable access: symbol/member
+    #[test]
+    fn eval_module_variable_access_symbol() {
+        init_test_logging();
+        let env = Environment::new();
+
+        // Create a dummy module
+        let module_env = Environment::new();
+        module_env
+            .borrow_mut()
+            .define("member_var".to_string(), Expr::Number(123.0));
+        let lisp_module = Expr::Module(crate::engine::ast::LispModule {
+            path: std::path::PathBuf::from("test_mod"),
+            env: module_env,
+        });
+
+        // (let m test_mod)
+        env.borrow_mut()
+            .define("m".to_string(), lisp_module.clone());
+
+        // m/member_var
+        let expr = Expr::Symbol("m/member_var".to_string());
+        assert_eq!(eval(&expr, Rc::clone(&env)), Ok(Expr::Number(123.0)));
+    }
+
+    #[test]
+    fn eval_module_variable_access_member_not_found() {
+        init_test_logging();
+        let env = Environment::new();
+        let module_env = Environment::new(); // Empty module
+        let lisp_module = Expr::Module(crate::engine::ast::LispModule {
+            path: std::path::PathBuf::from("test_mod"),
+            env: module_env,
+        });
+        env.borrow_mut()
+            .define("m".to_string(), lisp_module.clone());
+
+        // m/non_existent
+        let expr = Expr::Symbol("m/non_existent".to_string());
+        assert_eq!(
+            eval(&expr, Rc::clone(&env)),
+            Err(LispError::MemberNotFoundInModule {
+                module: "m".to_string(),
+                member: "non_existent".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn eval_module_variable_access_not_a_module() {
+        init_test_logging();
+        let env = Environment::new();
+        env.borrow_mut()
+            .define("not_a_module".to_string(), Expr::Number(42.0));
+
+        // not_a_module/member
+        let expr = Expr::Symbol("not_a_module/member".to_string());
+        assert_eq!(
+            eval(&expr, Rc::clone(&env)),
+            Err(LispError::NotAModule("not_a_module".to_string()))
+        );
+    }
+
+    #[test]
+    fn eval_module_variable_access_module_var_undefined() {
+        init_test_logging();
+        let env = Environment::new();
+
+        // undefined_mod/member
+        let expr = Expr::Symbol("undefined_mod/member".to_string());
+        assert_eq!(
+            eval(&expr, Rc::clone(&env)),
+            Err(LispError::UndefinedSymbol("undefined_mod".to_string()))
+        );
+    }
+
+    #[test]
+    fn eval_symbol_with_slash_invalid_format() {
+        init_test_logging();
+        let env = Environment::new();
+        // foo/ (empty member name)
+        assert_eq!(
+            eval(&Expr::Symbol("foo/".to_string()), Rc::clone(&env)),
+            Err(LispError::UndefinedSymbol("foo/".to_string()))
+        );
+        // /bar (empty module name)
+        assert_eq!(
+            eval(&Expr::Symbol("/bar".to_string()), Rc::clone(&env)),
+            Err(LispError::UndefinedSymbol("/bar".to_string()))
+        );
+         // / (just a slash)
+         assert_eq!(
+            eval(&Expr::Symbol("/".to_string()), Rc::clone(&env)),
+            Err(LispError::UndefinedSymbol("/".to_string()))
+        );
     }
 }
