@@ -150,7 +150,7 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
 fn apply(
     func_expr_to_call: Expr, // Renamed parameter for clarity
     evaluated_args: Vec<Expr>,
-    calling_env: Rc<RefCell<Environment>>, // Use the passed environment
+    _calling_env: Rc<RefCell<Environment>>, // Use the passed environment, prefixed with _
 ) -> Result<Expr, LispError> {
     match func_expr_to_call { // Use the renamed parameter
         Expr::Function(lisp_fn) => {
