@@ -69,18 +69,17 @@ fn parse_string_raw(input: &str) -> IResult<&str, Expr> {
             none_of("\"\\"), // Normal characters: any char except " or \
             '\\',            // Escape character: \
             alt((
-                // Transformed escape sequences
-                tag("\"").map(|_| "\"".to_string()), // \" -> "
-                tag("\\").map(|_| "\\".to_string()), // \\ -> \
-                tag("n").map(|_| "\n".to_string()),  // \n -> newline
-                tag("r").map(|_| "\r".to_string()),  // \r -> carriage return
-                tag("t").map(|_| "\t".to_string()),  // \t -> tab
-                                                 // Add more escapes like \u{XXXX} if needed
+                // Transformed escape sequences should map to &str for escaped_transform
+                tag("\"").map(|_| "\""), 
+                tag("\\").map(|_| "\\"),
+                tag("n").map(|_| "\n"),
+                tag("r").map(|_| "\r"),
+                tag("t").map(|_| "\t"),
             )),
         ),
         char('"'),
     )
-    .map(Expr::String)
+    .map(|s: String| Expr::String(s)) // escaped_transform collects into String
     .parse(input)
 }
 

@@ -29,8 +29,8 @@ pub enum LispError {
     ModuleNotFound(std::path::PathBuf),
     #[error("Error loading module '{path:?}': {source}")]
     ModuleLoadError { path: std::path::PathBuf, source: Box<LispError> },
-    #[error("I/O error for module '{path:?}': {source}")]
-    ModuleIoError { path: std::path::PathBuf, source: std::io::Error },
+    #[error("I/O error for module '{path:?}': kind: {kind:?}, message: {message}")]
+    ModuleIoError { path: std::path::PathBuf, kind: std::io::ErrorKind, message: String },
     // Add more specific errors as the interpreter develops
 }
 
@@ -43,8 +43,9 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
         | Expr::NativeFunction(_)
         | Expr::Bool(_)
         | Expr::Nil
+        | Expr::String(_) // Added String to self-evaluating types
         | Expr::Module(_) => {
-            debug!(env = ?env.borrow(), "Evaluating Number, Function, NativeFunction, Bool, Nil, or Module: {:?}", expr);
+            debug!(env = ?env.borrow(), "Evaluating Number, Function, NativeFunction, Bool, Nil, String, or Module: {:?}", expr);
             Ok(expr.clone()) // These types evaluate to themselves
         }
         Expr::Symbol(s) => {

@@ -210,7 +210,8 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
 
     let current_dir = std::env::current_dir().map_err(|e| LispError::ModuleIoError {
         path: PathBuf::from(relative_path_str.clone()), // Use relative path for error context here
-        source: e,
+        kind: e.kind(),
+        message: e.to_string(),
     })?;
     let mut absolute_path = current_dir;
     absolute_path.push(&relative_path_str);
@@ -221,7 +222,7 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
             if e.kind() == std::io::ErrorKind::NotFound {
                 return Err(LispError::ModuleNotFound(absolute_path));
             } else {
-                return Err(LispError::ModuleIoError { path: absolute_path, source: e });
+                return Err(LispError::ModuleIoError { path: absolute_path, kind: e.kind(), message: e.to_string() });
             }
         }
     };
@@ -230,17 +231,22 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
 
     // Check cache
     {
-        let cache = crate::MODULE_CACHE.lock().unwrap(); 
-        if let Some(cached_module) = cache.get(&canonical_path) {
+        // Accessing thread_local storage
+        let cached_module = crate::MODULE_CACHE.with(|cache_cell| {
+            let cache = cache_cell.borrow();
+            cache.get(&canonical_path).cloned() // Clone if found
+        });
+        if let Some(module) = cached_module {
             trace!(path = %canonical_path.display(), "Module found in cache");
-            return Ok(cached_module.clone());
+            return Ok(module);
+        }
         }
     } // Release lock
 
     // Load and evaluate module
     let content = match fs::read_to_string(&canonical_path) {
         Ok(c) => c,
-        Err(e) => return Err(LispError::ModuleIoError { path: canonical_path, source: e }),
+        Err(e) => return Err(LispError::ModuleIoError { path: canonical_path, kind: e.kind(), message: e.to_string() }),
     };
 
     let module_env = Environment::new_with_prelude();
@@ -288,8 +294,10 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
 
     // Add to cache
     {
-        let mut cache = crate::MODULE_CACHE.lock().unwrap();
-        cache.insert(canonical_path.clone(), new_module.clone());
+        crate::MODULE_CACHE.with(|cache_cell| {
+            let mut cache = cache_cell.borrow_mut();
+            cache.insert(canonical_path.clone(), new_module.clone());
+        });
         trace!(path = %canonical_path.display(), "Module loaded and cached");
     }
 

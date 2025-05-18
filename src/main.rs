@@ -14,14 +14,18 @@ use std::collections::HashMap; // For MODULE_CACHE
 use std::fs;
 use std::path::PathBuf; // For MODULE_CACHE keys
 use std::rc::Rc;
-use std::sync::Mutex; // For MODULE_CACHE
-use once_cell::sync::Lazy; // For MODULE_CACHE
+// Mutex and Lazy are not needed for thread_local!
+// use std::sync::Mutex;
+// use once_cell::sync::Lazy;
+use std::cell::RefCell; // For thread_local!
 
-// Global cache for loaded modules.
+// Global cache for loaded modules, using thread_local for single-threaded context.
 // Key: Canonicalized absolute path to the module file.
 // Value: The Expr::Module representing the loaded module.
-pub(crate) static MODULE_CACHE: Lazy<Mutex<HashMap<PathBuf, crate::engine::ast::Expr>>> = // Made pub(crate) for clarity
-    Lazy::new(|| Mutex::new(HashMap::new()));
+thread_local! {
+    pub(crate) static MODULE_CACHE: RefCell<HashMap<PathBuf, crate::engine::ast::Expr>> =
+        RefCell::new(HashMap::new());
+}
 
 #[tracing::instrument]
 fn main() -> Result<()> {
@@ -133,7 +137,7 @@ fn main() -> Result<()> {
                         let module_path_str = file_path.display().to_string();
                         let module_expr =
                             crate::engine::ast::Expr::Module(crate::engine::ast::LispModule {
-                                path: module_path_str.clone(),
+                                path: file_path.clone(), // Use the PathBuf directly
                                 env: file_env,
                             });
 
