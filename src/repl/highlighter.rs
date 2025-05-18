@@ -163,9 +163,51 @@ impl Highlighter for ReplHelper {
 impl Validator for ReplHelper {
     fn validate(
         &self,
-        _ctx: &mut rustyline::validate::ValidationContext,
+        ctx: &mut rustyline::validate::ValidationContext,
     ) -> Result<rustyline::validate::ValidationResult, ReadlineError> {
-        Ok(rustyline::validate::ValidationResult::Valid(None)) // No-op validation
+        let input = ctx.input();
+        let mut open_parens = 0;
+        let mut close_parens = 0;
+        let mut in_string = false;
+        let mut in_comment = false;
+
+        for ch in input.chars() {
+            if in_comment {
+                if ch == '\n' {
+                    in_comment = false; // Comment ends at newline
+                }
+                continue; // Ignore characters within a comment for paren counting
+            }
+
+            match ch {
+                ';' if !in_string => {
+                    in_comment = true; // Start of a comment
+                }
+                '"' => {
+                    // Basic string toggle; doesn't handle escaped quotes within strings perfectly
+                    // for this simple paren counter, but good enough for now.
+                    in_string = !in_string;
+                }
+                '(' if !in_string => {
+                    open_parens += 1;
+                }
+                ')' if !in_string => {
+                    close_parens += 1;
+                }
+                _ => {}
+            }
+        }
+
+        if in_string {
+            // Unterminated string literal
+            Ok(rustyline::validate::ValidationResult::Incomplete)
+        } else if open_parens > close_parens {
+            // More open parentheses than close parentheses
+            Ok(rustyline::validate::ValidationResult::Incomplete)
+        } else {
+            // Balanced or more closing than opening (which is an error for the parser, but complete for rustyline)
+            Ok(rustyline::validate::ValidationResult::Valid(None))
+        }
     }
 }
 
