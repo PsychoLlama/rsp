@@ -154,7 +154,8 @@ fn apply(
     evaluated_args: Vec<Expr>,
     _calling_env: Rc<RefCell<Environment>>, // Use the passed environment, prefixed with _
 ) -> Result<Expr, LispError> {
-    match func_expr_to_call { // Use the renamed parameter
+    match func_expr_to_call {
+        // Use the renamed parameter
         Expr::Function(lisp_fn) => {
             debug!(function = ?lisp_fn, "Applying LispFunction");
 

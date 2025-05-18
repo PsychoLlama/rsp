@@ -56,7 +56,7 @@ pub fn native_log_error(args: Vec<Expr>) -> Result<Expr, LispError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{native_log_info, native_log_error};
+    use super::{native_log_error, native_log_info};
     use crate::engine::ast::Expr;
     use crate::logging::init_test_logging;
 
@@ -74,14 +74,13 @@ mod tests {
         let args = vec![Expr::Number(123.0)];
         assert_eq!(native_log_info(args), Ok(Expr::String("123".to_string())));
     }
-    
+
     #[test]
     fn test_native_log_info_single_string_arg_no_format() {
         init_test_logging();
         let args = vec![Expr::String("hello".to_string())];
         assert_eq!(native_log_info(args), Ok(Expr::String("hello".to_string())));
     }
-
 
     #[test]
     fn test_native_log_info_multiple_args_no_format_first_arg_not_string() {
@@ -91,9 +90,12 @@ mod tests {
             Expr::Symbol("world".to_string()),
             Expr::Number(42.0),
         ];
-        assert_eq!(native_log_info(args), Ok(Expr::String("1 world 42".to_string())));
+        assert_eq!(
+            native_log_info(args),
+            Ok(Expr::String("1 world 42".to_string()))
+        );
     }
-    
+
     #[test]
     fn test_native_log_info_multiple_args_no_format_first_arg_string() {
         init_test_logging();
@@ -115,9 +117,11 @@ mod tests {
             Expr::Number(1.0),
             Expr::Bool(true),
         ];
-        assert_eq!(native_log_info(args), Ok(Expr::String("Value: 1 and true".to_string())));
+        assert_eq!(
+            native_log_info(args),
+            Ok(Expr::String("Value: 1 and true".to_string()))
+        );
     }
-
 
     #[test]
     fn test_native_log_error_no_args() {
@@ -129,7 +133,10 @@ mod tests {
     fn test_native_log_error_single_arg_no_format() {
         init_test_logging();
         let args = vec![Expr::String("ERROR".to_string())];
-        assert_eq!(native_log_error(args), Ok(Expr::String("ERROR".to_string())));
+        assert_eq!(
+            native_log_error(args),
+            Ok(Expr::String("ERROR".to_string()))
+        );
     }
 
     #[test]
@@ -140,6 +147,9 @@ mod tests {
             Expr::Symbol("something".to_string()),
             Expr::Number(101.0),
         ];
-        assert_eq!(native_log_error(args), Ok(Expr::String("Error: something failed with 101".to_string())));
+        assert_eq!(
+            native_log_error(args),
+            Ok(Expr::String("Error: something failed with 101".to_string()))
+        );
     }
 }

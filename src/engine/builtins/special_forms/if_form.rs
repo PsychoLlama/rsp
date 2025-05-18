@@ -1,6 +1,6 @@
 use crate::engine::ast::Expr;
 use crate::engine::env::Environment;
-use crate::engine::eval::{eval as main_eval, LispError};
+use crate::engine::eval::{LispError, eval as main_eval};
 use std::cell::RefCell;
 use std::rc::Rc;
 use tracing::{debug, error, instrument, trace};
@@ -47,7 +47,7 @@ pub fn eval_if(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
 mod tests {
     use crate::engine::ast::Expr;
     use crate::engine::env::Environment;
-    use crate::engine::eval::{eval, LispError};
+    use crate::engine::eval::{LispError, eval};
     use crate::logging::init_test_logging;
     // Rc is not directly used in these tests. Environment::new() returns Rc<RefCell<Environment>>.
 
@@ -197,7 +197,7 @@ mod tests {
             Expr::Symbol("if".to_string()),
             Expr::Bool(true),
             Expr::Symbol("then-val".to_string()),
-            Expr::Symbol("else-val".to_string()), 
+            Expr::Symbol("else-val".to_string()),
         ]);
         assert_eq!(eval(&expr, env), Ok(Expr::Number(100.0)));
     }
@@ -211,7 +211,7 @@ mod tests {
         let expr = Expr::List(vec![
             Expr::Symbol("if".to_string()),
             Expr::Bool(false),
-            Expr::Symbol("then-val".to_string()), 
+            Expr::Symbol("then-val".to_string()),
             Expr::Symbol("else-val".to_string()),
         ]);
         assert_eq!(eval(&expr, env), Ok(Expr::Number(200.0)));

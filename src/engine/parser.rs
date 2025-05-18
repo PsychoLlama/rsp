@@ -699,10 +699,7 @@ mod tests {
             parse_expr("'123"),
             Ok((
                 "",
-                Expr::List(vec![
-                    Expr::Symbol("quote".to_string()),
-                    Expr::Number(123.0)
-                ])
+                Expr::List(vec![Expr::Symbol("quote".to_string()), Expr::Number(123.0)])
             ))
         );
     }
@@ -748,10 +745,7 @@ mod tests {
             parse_expr("'()"),
             Ok((
                 "",
-                Expr::List(vec![
-                    Expr::Symbol("quote".to_string()),
-                    Expr::List(vec![])
-                ])
+                Expr::List(vec![Expr::Symbol("quote".to_string()), Expr::List(vec![])])
             ))
         );
     }

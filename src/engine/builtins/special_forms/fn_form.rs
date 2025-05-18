@@ -71,7 +71,7 @@ pub fn eval_fn(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
 mod tests {
     use crate::engine::ast::{Expr, LispFunction};
     use crate::engine::env::Environment;
-    use crate::engine::eval::{eval, LispError};
+    use crate::engine::eval::{LispError, eval};
     use crate::logging::init_test_logging;
     use std::rc::Rc;
 
@@ -110,7 +110,7 @@ mod tests {
         let env = Environment::new();
         let fn_expr_ast = Expr::List(vec![
             Expr::Symbol("fn".to_string()),
-            Expr::List(vec![]), 
+            Expr::List(vec![]),
             Expr::Number(10.0),
         ]);
         let result = eval(&fn_expr_ast, Rc::clone(&env));
@@ -163,7 +163,7 @@ mod tests {
         let env = Environment::new();
         let fn_expr_ast = Expr::List(vec![
             Expr::Symbol("fn".to_string()),
-            Expr::Symbol("x".to_string()), 
+            Expr::Symbol("x".to_string()),
             Expr::Symbol("x".to_string()),
         ]);
         assert_eq!(
@@ -181,7 +181,7 @@ mod tests {
         let env = Environment::new();
         let fn_expr_ast = Expr::List(vec![
             Expr::Symbol("fn".to_string()),
-            Expr::List(vec![Expr::Symbol("x".to_string()), Expr::Number(10.0)]), 
+            Expr::List(vec![Expr::Symbol("x".to_string()), Expr::Number(10.0)]),
             Expr::Symbol("x".to_string()),
         ]);
         assert_eq!(

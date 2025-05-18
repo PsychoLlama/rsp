@@ -22,7 +22,7 @@ pub fn eval_quote(args: &[Expr]) -> Result<Expr, LispError> {
 mod tests {
     use crate::engine::ast::Expr;
     use crate::engine::env::Environment;
-    use crate::engine::eval::{eval, LispError};
+    use crate::engine::eval::{LispError, eval};
     use crate::logging::init_test_logging;
     // Rc is not directly used in these tests. Environment::new() returns Rc<RefCell<Environment>>.
 

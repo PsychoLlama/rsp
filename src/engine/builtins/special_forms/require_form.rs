@@ -1,8 +1,8 @@
+use crate::MODULE_CACHE;
 use crate::engine::ast::{Expr, LispModule};
 use crate::engine::env::Environment;
-use crate::engine::eval::{eval as main_eval, LispError};
+use crate::engine::eval::{LispError, eval as main_eval};
 use crate::engine::parser;
-use crate::MODULE_CACHE;
 use std::cell::RefCell;
 use std::fs;
 use std::path::PathBuf;

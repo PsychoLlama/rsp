@@ -1,6 +1,6 @@
 use crate::engine::ast::Expr;
 use crate::engine::env::Environment;
-use crate::engine::eval::{eval as main_eval, LispError};
+use crate::engine::eval::{LispError, eval as main_eval};
 use crate::engine::special_forms as special_form_constants;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -55,7 +55,7 @@ pub fn eval_let(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Li
 mod tests {
     use crate::engine::ast::Expr;
     use crate::engine::env::Environment;
-    use crate::engine::eval::{eval, LispError};
+    use crate::engine::eval::{LispError, eval};
     use crate::logging::init_test_logging;
     use std::rc::Rc;
 
@@ -129,7 +129,7 @@ mod tests {
         let env = Environment::new();
         let let_expr = Expr::List(vec![
             Expr::Symbol("let".to_string()),
-            Expr::Number(10.0), 
+            Expr::Number(10.0),
             Expr::Number(20.0),
         ]);
         assert_eq!(

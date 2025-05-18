@@ -75,7 +75,7 @@ mod tests {
     use super::*; // Imports native_add, native_equals, native_multiply, extract_number
     use crate::engine::ast::{Expr, NativeFunction};
     use crate::engine::env::Environment;
-    use crate::engine::eval::{eval, LispError};
+    use crate::engine::eval::{LispError, eval};
     use crate::logging::init_test_logging;
     // Rc is not used in these tests
 
