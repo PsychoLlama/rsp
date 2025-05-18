@@ -4,7 +4,7 @@ use nom::{
     branch::alt, // For trying multiple parsers
     bytes::complete::{is_not, tag}, // Removed escaped_transform
     character::complete::{char, multispace1, satisfy, not_line_ending}, // Added not_line_ending, Removed none_of
-    combinator::{recognize, verify},                   // Added verify
+    combinator::{recognize, verify, opt},              // Added opt, Added verify
     multi::{fold_many0, many0, many1, separated_list0}, // Added fold_many0 and many1
     number::complete::double,                          // For parsing f64 numbers
     sequence::{delimited, pair, preceded, terminated}, // For sequencing parsers
@@ -197,14 +197,17 @@ fn expr_recursive_impl(input: &str) -> IResult<&str, Expr> {
 }
 
 // Top-level parser function for a single expression.
-// Handles leading AND trailing whitespace around the core expression.
+// Handles leading AND trailing whitespace/comments.
+// Returns Option<Expr> to indicate if an actual expression was found.
 #[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
-pub fn parse_expr(input: &str) -> IResult<&str, Expr> {
-    trace!("Attempting to parse expression (with surrounding whitespace/comment handling)");
-    delimited(
-        space_or_comment0,   // Consume leading spaces/comments
-        expr_recursive_impl, // Parse the core expression
-        space_or_comment0,   // Consume trailing spaces/comments
+pub fn parse_expr(input: &str) -> IResult<&str, Option<Expr>> {
+    trace!("Attempting to parse expression (optional, with surrounding whitespace/comment handling)");
+    preceded(
+        space_or_comment0, // Consume leading spaces/comments
+        opt(terminated(    // The core expression is optional
+            expr_recursive_impl,
+            space_or_comment0, // Consume trailing spaces/comments *after* the expression
+        )),
     )
     .parse(input)
 }
@@ -218,35 +221,35 @@ mod tests {
     fn test_parse_simple_number() {
         init_test_logging();
         let result = parse_expr("123");
-        assert_eq!(result, Ok(("", Expr::Number(123.0))));
+        assert_eq!(result, Ok(("", Some(Expr::Number(123.0)))));
     }
 
     #[test]
     fn test_parse_number_with_leading_whitespace() {
         init_test_logging();
         let result = parse_expr("  456");
-        assert_eq!(result, Ok(("", Expr::Number(456.0))));
+        assert_eq!(result, Ok(("", Some(Expr::Number(456.0)))));
     }
 
     #[test]
     fn test_parse_number_with_trailing_whitespace() {
         init_test_logging();
         let result = parse_expr("789  ");
-        assert_eq!(result, Ok(("", Expr::Number(789.0))));
+        assert_eq!(result, Ok(("", Some(Expr::Number(789.0)))));
     }
 
     #[test]
     fn test_parse_number_with_both_whitespace() {
         init_test_logging();
         let result = parse_expr("  123.45  ");
-        assert_eq!(result, Ok(("", Expr::Number(123.45))));
+        assert_eq!(result, Ok(("", Some(Expr::Number(123.45)))));
     }
 
     #[test]
     fn test_parse_negative_number() {
         init_test_logging();
         let result = parse_expr("-10.5");
-        assert_eq!(result, Ok(("", Expr::Number(-10.5))));
+        assert_eq!(result, Ok(("", Some(Expr::Number(-10.5)))));
     }
 
     #[test]
@@ -254,30 +257,30 @@ mod tests {
         init_test_logging();
         // nom's `double` parser handles optional leading `+` or `-`.
         let result = parse_expr("+77");
-        assert_eq!(result, Ok(("", Expr::Number(77.0))));
+        assert_eq!(result, Ok(("", Some(Expr::Number(77.0)))));
     }
 
     #[test]
     fn test_parse_number_scientific_notation() {
         init_test_logging();
         let result = parse_expr("1.23e-4");
-        assert_eq!(result, Ok(("", Expr::Number(0.000123))));
+        assert_eq!(result, Ok(("", Some(Expr::Number(0.000123)))));
         let result_caps = parse_expr("  3.14E5  ");
-        assert_eq!(result_caps, Ok(("", Expr::Number(314000.0))));
+        assert_eq!(result_caps, Ok(("", Some(Expr::Number(314000.0)))));
     }
 
     #[test]
     fn test_parse_number_leaves_remaining_input() {
         init_test_logging();
         let result = parse_expr("123 abc");
-        assert_eq!(result, Ok(("abc", Expr::Number(123.0)))); // Corrected: ws consumes the space after the number
+        assert_eq!(result, Ok(("abc", Some(Expr::Number(123.0))))); 
     }
 
     #[test]
     fn test_parse_number_leaves_remaining_input_no_trailing_ws_for_number() {
         init_test_logging();
         let result = parse_expr("123abc"); // No space after number
-        assert_eq!(result, Ok(("abc", Expr::Number(123.0))));
+        assert_eq!(result, Ok(("abc", Some(Expr::Number(123.0)))));
     }
 
     #[test]
@@ -287,7 +290,7 @@ mod tests {
         // "abc" is not a number, bool, or nil, so it should be parsed as a symbol.
         assert_eq!(
             result,
-            Ok(("", Expr::Symbol("abc".to_string()))),
+            Ok(("", Some(Expr::Symbol("abc".to_string())))),
             "Should parse 'abc' as a symbol. Got: {:?}",
             result
         );
@@ -297,9 +300,10 @@ mod tests {
     fn test_parse_empty_input() {
         init_test_logging();
         let result = parse_expr("");
-        assert!(
-            result.is_err(),
-            "Should fail to parse empty string. Got: {:?}",
+        assert_eq!(
+            result,
+            Ok(("", None)),
+            "Empty string should parse as None. Got: {:?}",
             result
         );
     }
@@ -308,9 +312,10 @@ mod tests {
     fn test_parse_only_whitespace() {
         init_test_logging();
         let result = parse_expr("   ");
-        assert!(
-            result.is_err(),
-            "Should fail to parse only whitespace. Got: {:?}",
+        assert_eq!(
+            result,
+            Ok(("", None)),
+            "Whitespace-only string should parse as None. Got: {:?}",
             result
         );
     }
@@ -319,32 +324,32 @@ mod tests {
     #[test]
     fn test_parse_true_literal() {
         init_test_logging();
-        assert_eq!(parse_expr("true"), Ok(("", Expr::Bool(true))));
-        assert_eq!(parse_expr("  true  "), Ok(("", Expr::Bool(true))));
+        assert_eq!(parse_expr("true"), Ok(("", Some(Expr::Bool(true)))));
+        assert_eq!(parse_expr("  true  "), Ok(("", Some(Expr::Bool(true)))));
     }
 
     #[test]
     fn test_parse_false_literal() {
         init_test_logging();
-        assert_eq!(parse_expr("false"), Ok(("", Expr::Bool(false))));
-        assert_eq!(parse_expr("  false  "), Ok(("", Expr::Bool(false))));
+        assert_eq!(parse_expr("false"), Ok(("", Some(Expr::Bool(false)))));
+        assert_eq!(parse_expr("  false  "), Ok(("", Some(Expr::Bool(false)))));
     }
 
     #[test]
     fn test_parse_nil_literal() {
         init_test_logging();
-        assert_eq!(parse_expr("nil"), Ok(("", Expr::Nil)));
-        assert_eq!(parse_expr("  nil  "), Ok(("", Expr::Nil)));
+        assert_eq!(parse_expr("nil"), Ok(("", Some(Expr::Nil))));
+        assert_eq!(parse_expr("  nil  "), Ok(("", Some(Expr::Nil))));
     }
 
     // Tests for symbols
     #[test]
     fn test_parse_simple_symbol() {
         init_test_logging();
-        assert_eq!(parse_expr("foo"), Ok(("", Expr::Symbol("foo".to_string()))));
+        assert_eq!(parse_expr("foo"), Ok(("", Some(Expr::Symbol("foo".to_string())))));
         assert_eq!(
             parse_expr("  bar  "),
-            Ok(("", Expr::Symbol("bar".to_string())))
+            Ok(("", Some(Expr::Symbol("bar".to_string()))))
         );
     }
 
@@ -353,7 +358,7 @@ mod tests {
         init_test_logging();
         assert_eq!(
             parse_expr("my-variable"),
-            Ok(("", Expr::Symbol("my-variable".to_string())))
+            Ok(("", Some(Expr::Symbol("my-variable".to_string()))))
         );
     }
 
@@ -362,7 +367,7 @@ mod tests {
         init_test_logging();
         assert_eq!(
             parse_expr("var123"),
-            Ok(("", Expr::Symbol("var123".to_string())))
+            Ok(("", Some(Expr::Symbol("var123".to_string()))))
         );
     }
 
@@ -371,46 +376,38 @@ mod tests {
         init_test_logging();
         assert_eq!(
             parse_expr("list?"),
-            Ok(("", Expr::Symbol("list?".to_string())))
+            Ok(("", Some(Expr::Symbol("list?".to_string()))))
         );
     }
 
     #[test]
     fn test_parse_symbol_with_special_chars() {
         init_test_logging();
-        assert_eq!(parse_expr("+"), Ok(("", Expr::Symbol("+".to_string()))));
-        assert_eq!(parse_expr("-"), Ok(("", Expr::Symbol("-".to_string()))));
-        assert_eq!(parse_expr("*"), Ok(("", Expr::Symbol("*".to_string()))));
-        assert_eq!(parse_expr("/"), Ok(("", Expr::Symbol("/".to_string()))));
-        assert_eq!(parse_expr("="), Ok(("", Expr::Symbol("=".to_string()))));
-        assert_eq!(parse_expr("<="), Ok(("", Expr::Symbol("<=".to_string()))));
+        assert_eq!(parse_expr("+"), Ok(("", Some(Expr::Symbol("+".to_string())))));
+        assert_eq!(parse_expr("-"), Ok(("", Some(Expr::Symbol("-".to_string())))));
+        assert_eq!(parse_expr("*"), Ok(("", Some(Expr::Symbol("*".to_string())))));
+        assert_eq!(parse_expr("/"), Ok(("", Some(Expr::Symbol("/".to_string())))));
+        assert_eq!(parse_expr("="), Ok(("", Some(Expr::Symbol("=".to_string())))));
+        assert_eq!(parse_expr("<="), Ok(("", Some(Expr::Symbol("<=".to_string())))));
     }
 
     #[test]
     fn test_parse_symbol_is_not_number() {
         init_test_logging();
-        // "123" should be parsed by parse_number, not parse_symbol
         let result = parse_expr("123");
-        assert_eq!(result, Ok(("", Expr::Number(123.0))));
-        // Ensure it's not misinterpreted as a symbol if parse_number was absent
-        // This is implicitly tested by alt order, but let's be clear.
-        // If we called parse_symbol directly:
-        // assert!(parse_symbol("123").is_err(), "Symbol parser should not parse '123'");
-        // Current symbol definition doesn't allow starting with a digit unless it's part of a special char like `+`
-        // So parse_symbol("123") would fail anyway.
+        assert_eq!(result, Ok(("", Some(Expr::Number(123.0)))));
     }
 
     #[test]
     fn test_parse_symbol_keywords_as_symbols() {
         init_test_logging();
-        // Keywords for special forms should parse as symbols
-        assert_eq!(parse_expr("let"), Ok(("", Expr::Symbol("let".to_string()))));
-        assert_eq!(parse_expr("if"), Ok(("", Expr::Symbol("if".to_string()))));
+        assert_eq!(parse_expr("let"), Ok(("", Some(Expr::Symbol("let".to_string())))));
+        assert_eq!(parse_expr("if"), Ok(("", Some(Expr::Symbol("if".to_string())))));
         assert_eq!(
             parse_expr("quote"),
-            Ok(("", Expr::Symbol("quote".to_string())))
+            Ok(("", Some(Expr::Symbol("quote".to_string()))))
         );
-        assert_eq!(parse_expr("fn"), Ok(("", Expr::Symbol("fn".to_string()))));
+        assert_eq!(parse_expr("fn"), Ok(("", Some(Expr::Symbol("fn".to_string())))));
     }
 
     #[test]
@@ -418,32 +415,25 @@ mod tests {
         init_test_logging();
         assert_eq!(
             parse_expr("symbol-name rest"),
-            Ok(("rest", Expr::Symbol("symbol-name".to_string())))
+            Ok(("rest", Some(Expr::Symbol("symbol-name".to_string()))))
         );
         assert_eq!(
             parse_expr("  symbol-name   rest"),
-            Ok(("rest", Expr::Symbol("symbol-name".to_string())))
+            Ok(("rest", Some(Expr::Symbol("symbol-name".to_string()))))
         );
     }
 
     #[test]
     fn test_parse_true_leaves_remaining_input() {
         init_test_logging();
-        assert_eq!(parse_expr("true rest"), Ok(("rest", Expr::Bool(true))));
+        assert_eq!(parse_expr("true rest"), Ok(("rest", Some(Expr::Bool(true)))));
     }
 
     #[test]
     fn test_parse_symbol_starting_with_dot_if_allowed() {
-        // Current symbol definition: initial_char does not include '.', subsequent_char does.
-        // So ".foo" would not parse. If initial_char included '.', this test would be relevant.
-        // For now, this behavior is as expected (error).
         init_test_logging();
         let result = parse_expr(".foo");
-        assert!(
-            result.is_err(),
-            "Symbol starting with '.' should fail with current rules: {:?}",
-            result
-        );
+        assert_eq!(result, Ok((".foo", None)), "Symbol starting with '.' should not parse as a valid expression: {:?}", result);
     }
 
     #[test]
@@ -451,41 +441,24 @@ mod tests {
         init_test_logging();
         assert_eq!(
             parse_expr("foo.bar"),
-            Ok(("", Expr::Symbol("foo.bar".to_string())))
+            Ok(("", Some(Expr::Symbol("foo.bar".to_string()))))
         );
     }
 
     #[test]
     fn test_parse_symbol_cannot_be_just_dots_if_not_special() {
-        // ".." or "..." might be special in some Lisps, but our current rule:
-        // initial_char does not include '.', subsequent_char does.
-        // So ".." would fail because first '.' is not an initial_char.
-        // If initial_char allowed '.', then ".." would be `initial='.'`, `subsequent=['.']`.
         init_test_logging();
-        // A single dot '.' is not a valid symbol by current rules (not in initial_char set).
-        assert!(
-            parse_expr(".").is_err(),
-            "Single dot symbol should fail with current rules. Got: {:?}",
-            parse_expr(".")
-        );
-        assert!(
-            parse_expr("..").is_err(),
-            "Double dot symbol should fail with current rules. Got: {:?}",
-            parse_expr("..")
-        );
-        assert!(
-            parse_expr("...").is_err(),
-            "Triple dot symbol should fail with current rules. Got: {:?}",
-            parse_expr("...")
-        );
+        assert_eq!(parse_expr("."), Ok((".", None)), "Single dot should not parse as valid expr. Got: {:?}", parse_expr("."));
+        assert_eq!(parse_expr(".."), Ok(("..", None)), "Double dot should not parse as valid expr. Got: {:?}", parse_expr(".."));
+        assert_eq!(parse_expr("..."), Ok(("...", None)), "Triple dot should not parse as valid expr. Got: {:?}", parse_expr("..."));
     }
 
     // Tests for lists
     #[test]
     fn test_parse_empty_list() {
         init_test_logging();
-        assert_eq!(parse_expr("()"), Ok(("", Expr::List(vec![]))));
-        assert_eq!(parse_expr(" ( ) "), Ok(("", Expr::List(vec![]))));
+        assert_eq!(parse_expr("()"), Ok(("", Some(Expr::List(vec![])))));
+        assert_eq!(parse_expr(" ( ) "), Ok(("", Some(Expr::List(vec![])))));
     }
 
     #[test]
@@ -493,11 +466,11 @@ mod tests {
         init_test_logging();
         assert_eq!(
             parse_expr("(1)"),
-            Ok(("", Expr::List(vec![Expr::Number(1.0)])))
+            Ok(("", Some(Expr::List(vec![Expr::Number(1.0)]))))
         );
         assert_eq!(
             parse_expr(" ( 1 ) "),
-            Ok(("", Expr::List(vec![Expr::Number(1.0)])))
+            Ok(("", Some(Expr::List(vec![Expr::Number(1.0)]))))
         );
     }
 
@@ -508,22 +481,22 @@ mod tests {
             parse_expr("(1 2 3)"),
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Number(1.0),
                     Expr::Number(2.0),
                     Expr::Number(3.0)
-                ])
+                ]))
             ))
         );
         assert_eq!(
             parse_expr(" (  1   2   3  ) "),
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Number(1.0),
                     Expr::Number(2.0),
                     Expr::Number(3.0)
-                ])
+                ]))
             ))
         );
     }
@@ -535,11 +508,11 @@ mod tests {
             parse_expr("(a b c)"),
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("a".to_string()),
                     Expr::Symbol("b".to_string()),
                     Expr::Symbol("c".to_string())
-                ])
+                ]))
             ))
         );
     }
@@ -551,11 +524,11 @@ mod tests {
             parse_expr("(+ 1 foo)"),
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("+".to_string()),
                     Expr::Number(1.0),
                     Expr::Symbol("foo".to_string())
-                ])
+                ]))
             ))
         );
     }
@@ -565,11 +538,11 @@ mod tests {
         init_test_logging();
         assert_eq!(
             parse_expr("(())"),
-            Ok(("", Expr::List(vec![Expr::List(vec![])])))
+            Ok(("", Some(Expr::List(vec![Expr::List(vec![])]))))
         );
         assert_eq!(
             parse_expr("( ( ) )"), // With spaces
-            Ok(("", Expr::List(vec![Expr::List(vec![])])))
+            Ok(("", Some(Expr::List(vec![Expr::List(vec![])]))))
         );
     }
 
@@ -580,11 +553,11 @@ mod tests {
             parse_expr("(a (b) c)"),
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("a".to_string()),
                     Expr::List(vec![Expr::Symbol("b".to_string())]),
                     Expr::Symbol("c".to_string())
-                ])
+                ]))
             ))
         );
     }
@@ -593,7 +566,7 @@ mod tests {
     fn test_parse_deeply_nested_list() {
         init_test_logging();
         let input = "(a (b (c (d) e) f) g)";
-        let expected = Expr::List(vec![
+        let expected = Some(Expr::List(vec![
             Expr::Symbol("a".to_string()),
             Expr::List(vec![
                 Expr::Symbol("b".to_string()),
@@ -605,7 +578,7 @@ mod tests {
                 Expr::Symbol("f".to_string()),
             ]),
             Expr::Symbol("g".to_string()),
-        ]);
+        ]));
         assert_eq!(parse_expr(input), Ok(("", expected)));
     }
 
@@ -615,11 +588,11 @@ mod tests {
         assert_eq!(
             parse_expr("(a b) c"),
             Ok((
-                "c", // Note: ws around list consumes space after ')', so " c" becomes "c"
-                Expr::List(vec![
+                "c", 
+                Some(Expr::List(vec![
                     Expr::Symbol("a".to_string()),
                     Expr::Symbol("b".to_string())
-                ])
+                ]))
             ))
         );
     }
@@ -628,77 +601,51 @@ mod tests {
     fn test_parse_list_unmatched_opening_paren() {
         init_test_logging();
         let result = parse_expr("(a b");
-        assert!(
-            result.is_err(),
-            "Should fail for unmatched opening parenthesis. Got: {:?}",
-            result
-        );
+        assert_eq!(result, Ok(("(a b", None)), "Unmatched opening paren should result in no expr parsed. Got: {:?}", result);
     }
 
     #[test]
     fn test_parse_list_unmatched_closing_paren() {
         init_test_logging();
-        // This case is tricky. "a b)" might be parsed as symbol "a", leaving "b)"
-        // Or, if `parse_expr` is part of a larger structure expecting balanced forms,
-        // the error might be caught at a higher level.
-        // For `parse_expr` itself, it would parse `a` and leave `b)`.
-        // If we parse `(a b))`, it should parse `(a b)` and leave `)`.
         let result = parse_expr("(a b))");
         assert_eq!(
             result,
             Ok((
                 ")",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("a".to_string()),
                     Expr::Symbol("b".to_string())
-                ])
+                ]))
             ))
         );
 
         let result_just_paren = parse_expr(")");
-        assert!(
-            result_just_paren.is_err(),
-            "Should fail for stray closing parenthesis. Got: {:?}",
-            result_just_paren
-        );
+        assert_eq!(result_just_paren, Ok((")", None)), "Stray closing paren should result in no expr parsed. Got: {:?}", result_just_paren);
     }
 
     #[test]
     fn test_parse_list_no_space_between_elements() {
         init_test_logging();
-        // "(ab)" should parse as a list containing one symbol "ab"
-        // because `multispace1` is the separator.
         assert_eq!(
             parse_expr("(ab)"),
-            Ok(("", Expr::List(vec![Expr::Symbol("ab".to_string())])))
+            Ok(("", Some(Expr::List(vec![Expr::Symbol("ab".to_string())]))))
         );
-        // "(a b)" is fine
         assert_eq!(
             parse_expr("(a b)"),
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("a".to_string()),
                     Expr::Symbol("b".to_string())
-                ])
+                ]))
             ))
         );
-        // "(1-2)" should be a list with one symbol "1-2" if symbols can start with numbers when followed by non-numbers
-        // Current symbol rule: initial_char cannot be a digit. So "1-2" is not a symbol.
-        // It's also not a number. So `parse_expr("1-2")` would fail.
-        // Thus `(1-2)` should fail to parse its element.
         let result = parse_expr("(1-2)");
-        assert!(
-            result.is_err(),
-            "Parsing (1-2) should fail as 1-2 is not a valid expr. Got: {:?}",
-            result
-        );
+        assert_eq!(result, Ok(("(1-2)", None)), "Parsing (1-2) should result in no expr. Got: {:?}", result);
 
-        // "(+1)" will be parsed as List([Number(1.0)]) because parse_number_raw takes precedence
-        // over parse_symbol_raw for the token "+1", and nom::number::complete::double parses "+1" as 1.0.
         assert_eq!(
             parse_expr("(+1)"),
-            Ok(("", Expr::List(vec![Expr::Number(1.0)])))
+            Ok(("", Some(Expr::List(vec![Expr::Number(1.0)]))))
         );
     }
 
@@ -710,20 +657,20 @@ mod tests {
             parse_expr("'foo"),
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("quote".to_string()),
                     Expr::Symbol("foo".to_string())
-                ])
+                ]))
             ))
         );
         assert_eq!(
             parse_expr("  'bar  "), // With surrounding whitespace
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("quote".to_string()),
                     Expr::Symbol("bar".to_string())
-                ])
+                ]))
             ))
         );
     }
@@ -735,7 +682,7 @@ mod tests {
             parse_expr("'123"),
             Ok((
                 "",
-                Expr::List(vec![Expr::Symbol("quote".to_string()), Expr::Number(123.0)])
+                Some(Expr::List(vec![Expr::Symbol("quote".to_string()), Expr::Number(123.0)]))
             ))
         );
     }
@@ -747,10 +694,10 @@ mod tests {
             parse_expr("'\"hello world\""),
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("quote".to_string()),
                     Expr::String("hello world".to_string())
-                ])
+                ]))
             ))
         );
     }
@@ -762,14 +709,14 @@ mod tests {
             parse_expr("'(a b c)"),
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("quote".to_string()),
                     Expr::List(vec![
                         Expr::Symbol("a".to_string()),
                         Expr::Symbol("b".to_string()),
                         Expr::Symbol("c".to_string())
                     ])
-                ])
+                ]))
             ))
         );
     }
@@ -781,7 +728,7 @@ mod tests {
             parse_expr("'()"),
             Ok((
                 "",
-                Expr::List(vec![Expr::Symbol("quote".to_string()), Expr::List(vec![])])
+                Some(Expr::List(vec![Expr::Symbol("quote".to_string()), Expr::List(vec![])]))
             ))
         );
     }
@@ -794,13 +741,13 @@ mod tests {
             parse_expr("''foo"),
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("quote".to_string()),
                     Expr::List(vec![
                         Expr::Symbol("quote".to_string()),
                         Expr::Symbol("foo".to_string())
                     ])
-                ])
+                ]))
             ))
         );
     }
@@ -813,10 +760,10 @@ mod tests {
             parse_expr("'  foo"),
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("quote".to_string()),
                     Expr::Symbol("foo".to_string())
-                ])
+                ]))
             ))
         );
         // '  (a b) should parse as (quote (a b))
@@ -824,13 +771,13 @@ mod tests {
             parse_expr("'  (a b)"),
             Ok((
                 "",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("quote".to_string()),
                     Expr::List(vec![
                         Expr::Symbol("a".to_string()),
                         Expr::Symbol("b".to_string())
                     ])
-                ])
+                ]))
             ))
         );
     }
@@ -839,7 +786,7 @@ mod tests {
     fn test_parse_quoted_list_with_quoted_element() {
         init_test_logging();
         // '(a 'b c) should parse as (quote (a (quote b) c))
-        let expected = Expr::List(vec![
+        let expected = Some(Expr::List(vec![
             Expr::Symbol("quote".to_string()),
             Expr::List(vec![
                 Expr::Symbol("a".to_string()),
@@ -849,7 +796,7 @@ mod tests {
                 ]),
                 Expr::Symbol("c".to_string()),
             ]),
-        ]);
+        ]));
         assert_eq!(parse_expr("'(a 'b c)"), Ok(("", expected)));
     }
 
@@ -860,10 +807,10 @@ mod tests {
             parse_expr("'foo bar"),
             Ok((
                 "bar",
-                Expr::List(vec![
+                Some(Expr::List(vec![
                     Expr::Symbol("quote".to_string()),
                     Expr::Symbol("foo".to_string())
-                ])
+                ]))
             ))
         );
     }
