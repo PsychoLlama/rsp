@@ -374,4 +374,115 @@ mod tests {
             ),
         }
     }
+
+    #[test]
+    fn test_require_dynamic_arg_evaluates_to_symbol() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        let dir = tempdir().unwrap();
+        let file_path = dir.path().join("dyn_mod_sym.lisp");
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "(let result-val 777)").unwrap();
+        drop(file);
+
+        let canonical_file_path = fs::canonicalize(&file_path).unwrap();
+        MODULE_CACHE.with(|mc| mc.borrow_mut().remove(&canonical_file_path));
+
+        // (let mod-name-expr (quote examples/dyn_mod_sym)) ; Note: 'require' will add .lisp
+        // (require mod-name-expr)
+        // For the test, we need to make sure the symbol path is resolvable from CWD
+        let module_name_for_require = format!("examples/{}", dir.path().file_name().unwrap().to_str().unwrap());
+        let module_file_name_for_let = format!("{}/dyn_mod_sym", module_name_for_require);
+
+
+        let lisp_code = format!(
+            r#"
+            (let module-path-symbol (quote {}))
+            (require module-path-symbol)
+            "#,
+            module_file_name_for_let // e.g. examples/tempdirname/dyn_mod_sym
+        );
+        
+        // We need to adjust the path for require to be relative to where cargo test runs (project root)
+        // and ensure the temp file is created within an "examples/tempdir" structure if that's how require resolves.
+        // Simpler: create the temp file such that its path from CWD is what `require` expects.
+        // The `require` form uses `module_name_key` which becomes `examples/tempdir/dyn_mod_sym`.
+        // It then appends `.lisp`. So the file needs to be at `examples/tempdir/dyn_mod_sym.lisp`.
+
+        // Let's adjust the test to create the file at a path that `(require 'dyn_mod_sym_test)` would find
+        // assuming `require` looks in CWD or CWD/examples.
+        // For simplicity, let's assume `require` resolves from CWD.
+        
+        let temp_module_name = "test_dyn_mod_via_symbol";
+        let temp_file_path = dir.path().join(format!("{}.lisp", temp_module_name));
+        let mut temp_file = File::create(&temp_file_path).unwrap();
+        writeln!(temp_file, "(let dynamic-val 987)").unwrap();
+        drop(temp_file);
+
+        let canonical_temp_path = fs::canonicalize(&temp_file_path).unwrap();
+        MODULE_CACHE.with(|mc| mc.borrow_mut().remove(&canonical_temp_path));
+
+
+        let lisp_code_dynamic = format!(
+            r#"
+            (let mod-name (quote {}))
+            (require mod-name)
+            "#,
+            temp_file_path.to_str().unwrap() // Pass the full path as a symbol/string after quote
+        );
+
+        let result = run_require_expr(&lisp_code_dynamic, Rc::clone(&env));
+
+        match result {
+            Ok(Expr::Module(module)) => {
+                assert_eq!(module.path, canonical_temp_path);
+                assert_eq!(
+                    module.env.borrow().get("dynamic-val"),
+                    Some(Expr::Number(987.0))
+                );
+            }
+            _ => panic!(
+                "Expected LispModule from dynamic symbol arg, got {:?}",
+                result
+            ),
+        }
+    }
+
+    #[test]
+    fn test_require_dynamic_arg_evaluates_to_string() {
+        init_test_logging();
+        let env = Environment::new_with_prelude();
+        let dir = tempdir().unwrap();
+        let temp_module_name = "test_dyn_mod_via_string";
+        let file_path = dir.path().join(format!("{}.lisp", temp_module_name));
+        let mut file = File::create(&file_path).unwrap();
+        writeln!(file, "(let string-loaded-val 654)").unwrap();
+        drop(file);
+
+        let canonical_file_path = fs::canonicalize(&file_path).unwrap();
+        MODULE_CACHE.with(|mc| mc.borrow_mut().remove(&canonical_file_path));
+        
+        let lisp_code = format!(
+            r#"
+            (let module-path-str "{}")
+            (require module-path-str)
+            "#,
+            file_path.to_str().unwrap() // The string variable holds the full path
+        );
+
+        let result = run_require_expr(&lisp_code, Rc::clone(&env));
+        match result {
+            Ok(Expr::Module(module)) => {
+                assert_eq!(module.path, canonical_file_path);
+                assert_eq!(
+                    module.env.borrow().get("string-loaded-val"),
+                    Some(Expr::Number(654.0))
+                );
+            }
+            _ => panic!(
+                "Expected LispModule from dynamic string arg, got {:?}",
+                result
+            ),
+        }
+    }
 }
