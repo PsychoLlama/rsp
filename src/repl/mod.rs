@@ -1,6 +1,7 @@
 use crate::engine::env::Environment;
 use rustyline::error::ReadlineError;
-use rustyline::{Editor, DefaultHistory};
+use rustyline::Editor;
+use rustyline::history::DefaultHistory; // Corrected import path
 use std::cell::RefCell;
 use std::rc::Rc;
 use tracing::info;
