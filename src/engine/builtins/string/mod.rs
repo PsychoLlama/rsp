@@ -183,7 +183,8 @@ mod tests {
         let string_module_expr = create_string_module();
 
         if let Expr::Module(module_data) = string_module_expr {
-            for (fn_name_in_module, func_expr) in module_data.env.borrow().bindings.iter() {
+            // Use the new public method to get bindings
+            for (fn_name_in_module, func_expr) in module_data.env.borrow().get_all_bindings() {
                 // Define functions like "string.concat", "string.len" in the test environment
                 env.borrow_mut().define(
                     format!("string.{}", fn_name_in_module),

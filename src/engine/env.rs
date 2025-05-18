@@ -71,6 +71,15 @@ impl Environment {
             }
         }
     }
+
+    /// Returns a clone of all bindings in the current environment.
+    /// Useful for inspection, especially in tests or for module introspection.
+    pub fn get_all_bindings(&self) -> Vec<(String, Expr)> {
+        self.bindings
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
+    }
 }
 
 #[cfg(test)]
