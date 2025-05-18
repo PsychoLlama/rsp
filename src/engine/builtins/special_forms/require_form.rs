@@ -410,8 +410,8 @@ mod tests {
         // (let mod-name-expr (quote examples/dyn_mod_sym)) ; Note: 'require' will add .lisp
         // (require mod-name-expr)
         // For the test, we need to make sure the symbol path is resolvable from CWD
-        let module_name_for_require = format!("examples/{}", dir.path().file_name().unwrap().to_str().unwrap());
-        let module_file_name_for_let = format!("{}/dyn_mod_sym", module_name_for_require);
+        // let module_name_for_require = format!("examples/{}", dir.path().file_name().unwrap().to_str().unwrap());
+        // let module_file_name_for_let = format!("{}/dyn_mod_sym", module_name_for_require); // This line was unused
 
         // The `lisp_code` variable was unused, `lisp_code_dynamic` is used below.
         // let lisp_code = format!(
