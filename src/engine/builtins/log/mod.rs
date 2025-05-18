@@ -92,7 +92,7 @@ pub fn create_log_module() -> Expr {
 
 #[cfg(test)]
 mod tests {
-    use super::{create_log_module, native_log_error, native_log_info};
+    use super::{native_log_error, native_log_info};
     use crate::engine::ast::Expr;
     use crate::logging::init_test_logging;
 
