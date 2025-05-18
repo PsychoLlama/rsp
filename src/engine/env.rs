@@ -30,31 +30,26 @@ impl Environment {
             outer: None,
         }));
 
-        // Add prelude functions
+        // Define prelude functions
+        // Each tuple is (Lisp name, Rust function pointer)
+        const PRELUDE_FUNCTIONS: &[(&str, crate::engine::ast::NativeFn)] = &[
+            ("+", native_add),
+            ("=", native_equals),
+            ("*", native_multiply),
+            // Add other prelude functions here as they are implemented
+        ];
+
         {
             let mut env_borrowed = env_rc.borrow_mut();
-            env_borrowed.define(
-                "+".to_string(),
-                Expr::NativeFunction(NativeFunction {
-                    name: "+".to_string(),
-                    func: native_add,
-                }),
-            );
-            env_borrowed.define(
-                "=".to_string(),
-                Expr::NativeFunction(NativeFunction {
-                    name: "=".to_string(),
-                    func: native_equals,
-                }),
-            );
-            env_borrowed.define(
-                "*".to_string(),
-                Expr::NativeFunction(NativeFunction {
-                    name: "*".to_string(),
-                    func: native_multiply,
-                }),
-            );
-            // Add other prelude functions here as they are implemented
+            for (name, func) in PRELUDE_FUNCTIONS {
+                env_borrowed.define(
+                    name.to_string(),
+                    Expr::NativeFunction(NativeFunction {
+                        name: name.to_string(),
+                        func: *func,
+                    }),
+                );
+            }
         }
         trace!(env = ?env_rc.borrow(), "Environment after adding prelude");
         env_rc
