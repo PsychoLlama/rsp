@@ -2,9 +2,9 @@ use nom::{
     IResult,
     Parser,      // Import the Parser trait to use its methods like .map() and .parse()
     branch::alt, // For trying multiple parsers
-    bytes::complete::{escaped_transform, tag, is_not}, // Added is_not
+    bytes::complete::{tag, is_not}, // Removed escaped_transform
     character::complete::multispace0, // For handling whitespace
-    character::complete::{char, multispace1, none_of, satisfy}, // For character-level parsing & whitespace
+    character::complete::{char, multispace1, satisfy}, // Removed none_of, For character-level parsing & whitespace
     combinator::{recognize, verify}, // Added verify
     multi::{many0, separated_list0, fold_many0}, // Added fold_many0
     number::complete::double, // For parsing f64 numbers
@@ -55,7 +55,7 @@ fn parse_nil_raw(input: &str) -> IResult<&str, Expr> {
 // Helper: Parse a non-empty sequence of unescaped characters.
 // Ensures that it consumes at least one character if it matches.
 fn parse_unescaped_char_sequence(input: &str) -> IResult<&str, &str> {
-    verify(is_not("\"\\"), |s: &str| !s.is_empty())(input)
+    verify(is_not("\"\\"), |s: &str| !s.is_empty()).parse(input)
 }
 
 // Helper: Parse an escaped character and return it as a String.
@@ -70,7 +70,7 @@ fn parse_escaped_char(input: &str) -> IResult<&str, String> {
             tag("t").map(|_| "\t".to_string()),
             // Add other escapes here if needed, e.g., unicode \uXXXX
         )),
-    )(input)
+    ).parse(input)
 }
 
 // Parses a string literal e.g. "hello world" or "escaped \" char" - raw token.
