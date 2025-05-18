@@ -97,7 +97,7 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                     trace!("First element is not a known special form, attempting function call");
 
                     // 1. Resolve or evaluate the first element of the list to get the function expression.
-                    let func_expr = match first_form {
+                    let func_expr_to_call = match first_form {
                         Expr::Symbol(s) if s.contains('/') => {
                             // Handle "module/member" syntax
                             let parts: Vec<&str> = s.splitn(2, '/').collect();
@@ -129,71 +129,75 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                             // For non-namespaced symbols or other expression types (e.g., a list that evaluates to a function)
                             eval(first_form, Rc::clone(&env))
                         }
-                    }?; // func_expr is the resolved Expr to be called
+                    }?; // func_expr_to_call is the resolved Expr to be called
 
-                    match func_expr {
-                        Expr::Function(lisp_fn) => {
-                            debug!(function = ?lisp_fn, "Attempting to call LispFunction");
-
-                            // 2. Evaluate the arguments
-                            let mut evaluated_args = Vec::new();
-                            for arg_expr in &list[1..] {
-                                evaluated_args.push(eval(arg_expr, Rc::clone(&env))?);
-                            }
-
-                            // 3. Check arity
-                            if evaluated_args.len() != lisp_fn.params.len() {
-                                error!(
-                                    expected = lisp_fn.params.len(),
-                                    got = evaluated_args.len(),
-                                    "Arity mismatch for function call"
-                                );
-                                return Err(LispError::ArityMismatch(format!(
-                                    "Function expects {} arguments, got {}",
-                                    lisp_fn.params.len(),
-                                    evaluated_args.len()
-                                )));
-                            }
-
-                            // 4. Create a new environment for the function call, enclosed by the function's closure
-                            let call_env = Environment::new_enclosed(Rc::clone(&lisp_fn.closure));
-                            trace!(?call_env, "Created new environment for function call");
-
-                            // 5. Bind parameters to arguments in the new environment
-                            for (param_name, arg_value) in
-                                lisp_fn.params.iter().zip(evaluated_args.iter())
-                            {
-                                call_env
-                                    .borrow_mut()
-                                    .define(param_name.clone(), arg_value.clone());
-                                trace!(param = %param_name, value = ?arg_value, "Bound parameter in call environment");
-                            }
-
-                            // 6. Evaluate the function body in the new environment
-                            debug!(body = ?lisp_fn.body, "Evaluating function body");
-                            eval(&lisp_fn.body, call_env)
-                        }
-                        Expr::NativeFunction(native_fn) => {
-                            debug!(native_function_name = %native_fn.name, "Attempting to call NativeFunction");
-                            // 2. Evaluate the arguments (already done for LispFunction, repeat for consistency or refactor)
-                            let mut evaluated_args = Vec::new();
-                            for arg_expr in &list[1..] {
-                                evaluated_args.push(eval(arg_expr, Rc::clone(&env))?);
-                            }
-                            // 3. Call the native Rust function
-                            trace!(args = ?evaluated_args, "Calling native function with evaluated arguments");
-                            (native_fn.func)(evaluated_args)
-                        }
-                        _ => {
-                            error!(non_function_expr = ?first_form, evaluated_to = ?func_expr, "Attempted to call a non-function or non-native-function");
-                            Err(LispError::NotAFunction(format!(
-                                "Expected a Lisp function or a native function, but found: {:?}",
-                                func_expr
-                            )))
-                        }
+                    // 2. Evaluate all arguments
+                    let mut evaluated_args = Vec::new();
+                    for arg_expr in &list[1..] {
+                        evaluated_args.push(eval(arg_expr, Rc::clone(&env))?);
                     }
+                    
+                    // 3. Apply the function
+                    apply(func_expr_to_call, evaluated_args, env)
                 }
             }
+        }
+    }
+}
+
+/// Applies a function (Lisp or native) to a list of evaluated arguments.
+#[instrument(skip(func_expr, evaluated_args, calling_env), fields(func = ?func_expr, args = ?evaluated_args), ret, err)]
+fn apply(
+    func_expr: Expr,
+    evaluated_args: Vec<Expr>,
+    _calling_env: Rc<RefCell<Environment>>, // Keep for potential future use (e.g. dynamic scope features)
+) -> Result<Expr, LispError> {
+    match func_expr {
+        Expr::Function(lisp_fn) => {
+            debug!(function = ?lisp_fn, "Applying LispFunction");
+
+            // Check arity
+            if evaluated_args.len() != lisp_fn.params.len() {
+                error!(
+                    expected = lisp_fn.params.len(),
+                    got = evaluated_args.len(),
+                    "Arity mismatch for function call"
+                );
+                return Err(LispError::ArityMismatch(format!(
+                    "Function expects {} arguments, got {}",
+                    lisp_fn.params.len(),
+                    evaluated_args.len()
+                )));
+            }
+
+            // Create a new environment for the function call, enclosed by the function's closure
+            let call_env = Environment::new_enclosed(Rc::clone(&lisp_fn.closure));
+            trace!(?call_env, "Created new environment for function call");
+
+            // Bind parameters to arguments in the new environment
+            for (param_name, arg_value) in lisp_fn.params.iter().zip(evaluated_args.iter()) {
+                call_env
+                    .borrow_mut()
+                    .define(param_name.clone(), arg_value.clone());
+                trace!(param = %param_name, value = ?arg_value, "Bound parameter in call environment");
+            }
+
+            // Evaluate the function body in the new environment
+            debug!(body = ?lisp_fn.body, "Evaluating function body");
+            eval(&lisp_fn.body, call_env)
+        }
+        Expr::NativeFunction(native_fn) => {
+            debug!(native_function_name = %native_fn.name, "Applying NativeFunction");
+            // Call the native Rust function
+            trace!(args = ?evaluated_args, "Calling native function with evaluated arguments");
+            (native_fn.func)(evaluated_args)
+        }
+        _ => {
+            error!(evaluated_to = ?func_expr, "Attempted to call a non-function or non-native-function expression");
+            Err(LispError::NotAFunction(format!(
+                "Expected a Lisp function or a native function, but found: {:?}",
+                func_expr
+            )))
         }
     }
 }
