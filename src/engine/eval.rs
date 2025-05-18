@@ -28,9 +28,16 @@ pub enum LispError {
     #[error("Module not found: {0:?}")]
     ModuleNotFound(std::path::PathBuf),
     #[error("Error loading module '{path:?}': {source}")]
-    ModuleLoadError { path: std::path::PathBuf, source: Box<LispError> },
+    ModuleLoadError {
+        path: std::path::PathBuf,
+        source: Box<LispError>,
+    },
     #[error("I/O error for module '{path:?}': kind: {kind:?}, message: {message}")]
-    ModuleIoError { path: std::path::PathBuf, kind: std::io::ErrorKind, message: String },
+    ModuleIoError {
+        path: std::path::PathBuf,
+        kind: std::io::ErrorKind,
+        message: String,
+    },
     #[error("Symbol '{0}' is not a module, cannot access members.")]
     NotAModule(String),
     #[error("Member '{member}' not found in module '{module}'.")]
@@ -88,7 +95,7 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                 // Attempt to evaluate as a function call
                 _ => {
                     trace!("First element is not a known special form, attempting function call");
-                    
+
                     // 1. Resolve or evaluate the first element of the list to get the function expression.
                     let func_expr = match first_form {
                         Expr::Symbol(s) if s.contains('/') => {

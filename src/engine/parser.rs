@@ -1,13 +1,13 @@
 use nom::{
     IResult,
-    Parser, // Import the Parser trait to use its methods like .map() and .parse()
-    branch::alt,                                           // For trying multiple parsers
-    bytes::complete::{escaped_transform, tag},              // For matching literal strings & escaped strings
-    character::complete::multispace0,     // For handling whitespace
+    Parser,      // Import the Parser trait to use its methods like .map() and .parse()
+    branch::alt, // For trying multiple parsers
+    bytes::complete::{escaped_transform, tag}, // For matching literal strings & escaped strings
+    character::complete::multispace0, // For handling whitespace
     character::complete::{char, multispace1, none_of, satisfy}, // For character-level parsing & whitespace
-    combinator::recognize,                // For transforming and recognizing parser output
-    multi::{many0, separated_list0},     // For repeating parsers
-    number::complete::double,             // For parsing f64 numbers
+    combinator::recognize, // For transforming and recognizing parser output
+    multi::{many0, separated_list0}, // For repeating parsers
+    number::complete::double, // For parsing f64 numbers
     sequence::{delimited, pair, preceded, terminated}, // For sequencing parsers
 };
 use tracing::trace; // For logging parser activity
@@ -70,7 +70,7 @@ fn parse_string_raw(input: &str) -> IResult<&str, Expr> {
             '\\',            // Escape character: \
             alt((
                 // Transformed escape sequences should map to &str for escaped_transform
-                tag("\"").map(|_| "\""), 
+                tag("\"").map(|_| "\""),
                 tag("\\").map(|_| "\\"),
                 tag("n").map(|_| "\n"),
                 tag("r").map(|_| "\r"),

@@ -222,11 +222,15 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
             if e.kind() == std::io::ErrorKind::NotFound {
                 return Err(LispError::ModuleNotFound(absolute_path));
             } else {
-                return Err(LispError::ModuleIoError { path: absolute_path, kind: e.kind(), message: e.to_string() });
+                return Err(LispError::ModuleIoError {
+                    path: absolute_path,
+                    kind: e.kind(),
+                    message: e.to_string(),
+                });
             }
         }
     };
-    
+
     debug!(path_specifier = ?path_specifier_expr, resolved_path = %canonical_path.display(), "Path for 'require'");
 
     // Check cache
@@ -245,7 +249,13 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
     // Load and evaluate module
     let content = match fs::read_to_string(&canonical_path) {
         Ok(c) => c,
-        Err(e) => return Err(LispError::ModuleIoError { path: canonical_path, kind: e.kind(), message: e.to_string() }),
+        Err(e) => {
+            return Err(LispError::ModuleIoError {
+                path: canonical_path,
+                kind: e.kind(),
+                message: e.to_string(),
+            });
+        }
     };
 
     let module_env = Environment::new_with_prelude();
@@ -260,23 +270,36 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
             Ok((remaining, ast)) => {
                 if let Err(e) = crate::engine::eval::eval(&ast, Rc::clone(&module_env)) {
                     error!(module_path = %canonical_path.display(), error = %e, "Error evaluating expression in module");
-                    return Err(LispError::ModuleLoadError { path: canonical_path, source: Box::new(e) });
+                    return Err(LispError::ModuleLoadError {
+                        path: canonical_path,
+                        source: Box::new(e),
+                    });
                 }
                 current_module_input = remaining;
             }
             Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
                 if !current_module_input.is_empty() {
-                    let parse_err_msg = format!("Parsing Error in module '{}': {:?}", canonical_path.display(), e);
+                    let parse_err_msg = format!(
+                        "Parsing Error in module '{}': {:?}",
+                        canonical_path.display(),
+                        e
+                    );
                     error!("{}", parse_err_msg);
                     return Err(LispError::ModuleLoadError {
                         path: canonical_path,
-                        source: Box::new(LispError::Evaluation(format!("Module parsing error: {}", parse_err_msg))),
+                        source: Box::new(LispError::Evaluation(format!(
+                            "Module parsing error: {}",
+                            parse_err_msg
+                        ))),
                     });
                 }
-                break; 
+                break;
             }
             Err(nom::Err::Incomplete(_)) => {
-                let msg = format!("Parsing incomplete in module '{}': More input needed.", canonical_path.display());
+                let msg = format!(
+                    "Parsing incomplete in module '{}': More input needed.",
+                    canonical_path.display()
+                );
                 error!("{}", msg);
                 return Err(LispError::ModuleLoadError {
                     path: canonical_path,
@@ -285,7 +308,7 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
             }
         }
     }
-    
+
     let new_module = Expr::Module(crate::engine::ast::LispModule {
         path: canonical_path.clone(),
         env: module_env,
@@ -372,56 +395,27 @@ pub fn native_multiply(args: Vec<Expr>) -> Result<Expr, LispError> {
     Ok(Expr::Number(product))
 }
 
+// Future built-in functions will go here.
+
 #[tracing::instrument(skip(args), ret, err)]
-pub fn native_println(args: Vec<Expr>) -> Result<Expr, LispError> {
-    trace!("Executing native 'println' function");
-    if args.is_empty() {
-        println!(); // Print a newline if no arguments
-        return Ok(Expr::String("".to_string())); // Return empty string
-    }
-
-    let format_str_expr = &args[0];
-    let format_str = match format_str_expr {
-        Expr::String(s) => s,
-        _ => {
-            return Err(LispError::TypeError {
-                expected: "String (format)".to_string(),
-                found: format!("{:?}", format_str_expr),
-            });
-        }
-    };
-
-    let mut arg_iter = args.iter().skip(1);
-    let mut result_string = String::new();
-    let mut last_pos = 0;
-
-    while let Some(percent_s_pos) = format_str[last_pos..].find("%s") {
-        let current_segment_start = last_pos + percent_s_pos;
-        result_string.push_str(&format_str[last_pos..current_segment_start]);
-
-        if let Some(arg_to_print) = arg_iter.next() {
-            result_string.push_str(&arg_to_print.to_lisp_string());
-        } else {
-            // Not enough arguments for %s, append %s literally
-            result_string.push_str("%s");
-        }
-        last_pos = current_segment_start + 2; // Move past "%s"
-    }
-    result_string.push_str(&format_str[last_pos..]); // Append remaining part of format string
-
-    // If there are unused arguments, it's not an error for this simple println,
-    // they are just ignored. More robust formatters might error or have different behavior.
-
-    println!("{}", result_string);
-    Ok(Expr::String(result_string)) // Return the formatted string
+pub fn native_log_info(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native 'log/info' function");
+    let output: Vec<String> = args.iter().map(|arg| arg.to_lisp_string()).collect();
+    println!("{}", output.join(" "));
+    Ok(Expr::Nil)
 }
 
-
-// Future built-in functions will go here.
+#[tracing::instrument(skip(args), ret, err)]
+pub fn native_log_error(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native 'log/error' function");
+    let output: Vec<String> = args.iter().map(|arg| arg.to_lisp_string()).collect();
+    eprintln!("{}", output.join(" ")); // Print to stderr
+    Ok(Expr::Nil)
+}
 
 #[cfg(test)]
 mod tests {
-    use super::{native_add, native_equals, native_println}; // Import parent module's functions
+    use super::{native_add, native_equals, native_log_error, native_log_info}; // Updated imports
     use crate::engine::ast::{Expr, LispFunction, NativeFunction}; // Added NativeFunction
     use crate::engine::env::Environment;
     use crate::engine::eval::{LispError, eval}; // Need main eval for testing integration
@@ -1269,117 +1263,61 @@ mod tests {
         );
     }
 
-    // Tests for native_println
-    // Note: These tests don't check stdout directly, but verify the logic by calling the function.
-    // Actual stdout checking would require more complex test setup (e.g., redirecting stdout).
-    // We trust that if the string formatting is correct, println! macro works.
+    // Tests for native_log_info and native_log_error
+    // These tests primarily check that the functions can be called and return Nil.
+    // Direct stdout/stderr capture is not implemented here.
 
     #[test]
-    fn test_native_println_no_args() {
+    fn test_native_log_info_no_args() {
         init_test_logging();
-        // (println) - should print a newline and return ""
-        assert_eq!(native_println(vec![]), Ok(Expr::String("".to_string())));
+        assert_eq!(native_log_info(vec![]), Ok(Expr::Nil));
+        // Expected output to stdout: "" (empty line)
     }
 
     #[test]
-    fn test_native_println_simple_string() {
+    fn test_native_log_info_single_arg() {
         init_test_logging();
-        // (println "hello")
         let args = vec![Expr::String("hello".to_string())];
-        assert_eq!(native_println(args), Ok(Expr::String("hello".to_string())));
+        assert_eq!(native_log_info(args), Ok(Expr::Nil));
         // Expected output to stdout: "hello"
     }
 
     #[test]
-    fn test_native_println_with_one_interpolation() {
+    fn test_native_log_info_multiple_args() {
         init_test_logging();
-        // (println "Hello, %s!" "world")
         let args = vec![
-            Expr::String("Hello, %s!".to_string()),
-            Expr::String("world".to_string()),
+            Expr::String("Hello".to_string()),
+            Expr::Symbol("world".to_string()),
+            Expr::Number(42.0),
         ];
-        assert_eq!(native_println(args), Ok(Expr::String("Hello, world!".to_string())));
-        // Expected output to stdout: "Hello, world!"
+        assert_eq!(native_log_info(args), Ok(Expr::Nil));
+        // Expected output to stdout: "Hello world 42"
     }
 
     #[test]
-    fn test_native_println_with_multiple_interpolations() {
+    fn test_native_log_error_no_args() {
         init_test_logging();
-        // (println "Name: %s, Age: %s" "Alice" (Number 30))
-        let args = vec![
-            Expr::String("Name: %s, Age: %s".to_string()),
-            Expr::String("Alice".to_string()),
-            Expr::Number(30.0),
-        ];
-        assert_eq!(native_println(args), Ok(Expr::String("Name: Alice, Age: 30".to_string())));
-        // Expected output to stdout: "Name: Alice, Age: 30"
+        assert_eq!(native_log_error(vec![]), Ok(Expr::Nil));
+        // Expected output to stderr: "" (empty line)
     }
 
     #[test]
-    fn test_native_println_not_enough_args_for_interpolation() {
+    fn test_native_log_error_single_arg() {
         init_test_logging();
-        // (println "Hello, %s %s" "world")
-        let args = vec![
-            Expr::String("Hello, %s %s".to_string()),
-            Expr::String("world".to_string()),
-        ];
-        assert_eq!(native_println(args), Ok(Expr::String("Hello, world %s".to_string())));
-        // Expected output to stdout: "Hello, world %s" (second %s is literal)
+        let args = vec![Expr::String("ERROR".to_string())];
+        assert_eq!(native_log_error(args), Ok(Expr::Nil));
+        // Expected output to stderr: "ERROR"
     }
 
     #[test]
-    fn test_native_println_too_many_args_for_interpolation() {
+    fn test_native_log_error_multiple_args() {
         init_test_logging();
-        // (println "Hello, %s" "world" "extra")
         let args = vec![
-            Expr::String("Hello, %s".to_string()),
-            Expr::String("world".to_string()),
-            Expr::String("extra".to_string()),
+            Expr::String("Error:".to_string()),
+            Expr::Symbol("something_failed".to_string()),
+            Expr::Number(101.0),
         ];
-        assert_eq!(native_println(args), Ok(Expr::String("Hello, world".to_string())));
-        // Expected output to stdout: "Hello, world" (extra arg ignored)
-    }
-
-    #[test]
-    fn test_native_println_no_interpolation_specifiers() {
-        init_test_logging();
-        // (println "Just a string" "arg1" "arg2")
-        let args = vec![
-            Expr::String("Just a string".to_string()),
-            Expr::String("arg1".to_string()),
-            Expr::String("arg2".to_string()),
-        ];
-        assert_eq!(native_println(args), Ok(Expr::String("Just a string".to_string())));
-        // Expected output to stdout: "Just a string"
-    }
-
-    #[test]
-    fn test_native_println_format_string_not_a_string() {
-        init_test_logging();
-        // (println 123 "world")
-        let args = vec![Expr::Number(123.0), Expr::String("world".to_string())];
-        assert_eq!(
-            native_println(args),
-            Err(LispError::TypeError {
-                expected: "String (format)".to_string(),
-                found: "Number(123.0)".to_string()
-            })
-        );
-    }
-
-    #[test]
-    fn test_native_println_interpolating_various_types() {
-        init_test_logging();
-        // (println "Sym: %s, Num: %s, Bool: %s, Nil: %s, List: %s" 'foo 123 true nil '(1 2))
-        let args = vec![
-            Expr::String("Sym: %s, Num: %s, Bool: %s, Nil: %s, List: %s".to_string()),
-            Expr::Symbol("foo".to_string()),
-            Expr::Number(123.0),
-            Expr::Bool(true),
-            Expr::Nil,
-            Expr::List(vec![Expr::Number(1.0), Expr::Number(2.0)]),
-        ];
-        assert_eq!(native_println(args), Ok(Expr::String("Sym: foo, Num: 123, Bool: true, Nil: nil, List: (1 2)".to_string())));
-        // Expected output: "Sym: foo, Num: 123, Bool: true, Nil: nil, List: (1 2)"
+        assert_eq!(native_log_error(args), Ok(Expr::Nil));
+        // Expected output to stderr: "Error: something_failed 101"
     }
 }
