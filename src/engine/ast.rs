@@ -45,6 +45,7 @@ pub enum Expr {
 #[derive(Clone)]
 pub struct LispModule {
     pub path: String,
+    #[allow(dead_code)] // Will be used when implementing module member access
     pub env: Rc<RefCell<Environment>>,
 }
 
