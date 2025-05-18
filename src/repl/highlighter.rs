@@ -1,6 +1,6 @@
 use lazy_static::lazy_static;
 use regex::Regex;
-use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
+use rustyline::highlight::Highlighter; // Removed MatchingBracketHighlighter
 use rustyline::completion::Completer; // Simplified import
 use rustyline::hint::Hinter;
 // History trait is not directly used by ReplHelper, but by Editor.
@@ -33,7 +33,7 @@ lazy_static! {
 
 #[derive(Default)]
 pub struct LispHighlighter {
-    matching_bracket_highlighter: MatchingBracketHighlighter,
+    // matching_bracket_highlighter field removed
 }
 
 impl Highlighter for LispHighlighter {
@@ -104,9 +104,10 @@ impl Highlighter for LispHighlighter {
         Owned(highlighted_line)
     }
 
-    fn highlight_char(&self, line: &str, pos: usize, _forced: bool) -> bool {
-        // Delegate to MatchingBracketHighlighter for char-level highlighting (e.g., cursor on bracket)
-        self.matching_bracket_highlighter.highlight_char(line, pos, _forced)
+    fn highlight_char(&self, _line: &str, _pos: usize, _forced: bool) -> bool {
+        // Always return true to ensure the main `highlight` method is called on every char change,
+        // which will re-apply our owo-colors based syntax highlighting.
+        true
     }
 }
 
