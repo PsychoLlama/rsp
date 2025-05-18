@@ -60,14 +60,18 @@ pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Exp
     if !relative_path_str.ends_with(".lisp") {
         relative_path_str.push_str(".lisp");
     }
-
-    let current_dir = std::env::current_dir().map_err(|e| LispError::ModuleIoError {
-        path: PathBuf::from(relative_path_str.clone()),
-        kind: e.kind(),
-        message: e.to_string(),
-    })?;
-    let mut absolute_path = current_dir;
-    absolute_path.push(&relative_path_str);
+    
+    let path_to_check = PathBuf::from(&relative_path_str);
+    let absolute_path = if path_to_check.is_absolute() {
+        path_to_check
+    } else {
+        let current_dir = std::env::current_dir().map_err(|e| LispError::ModuleIoError {
+            path: path_to_check.clone(), // Use the initial path for error reporting
+            kind: e.kind(),
+            message: e.to_string(),
+        })?;
+        current_dir.join(&path_to_check)
+    };
 
     let canonical_path = match fs::canonicalize(&absolute_path) {
         Ok(p) => p,
