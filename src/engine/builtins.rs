@@ -372,11 +372,56 @@ pub fn native_multiply(args: Vec<Expr>) -> Result<Expr, LispError> {
     Ok(Expr::Number(product))
 }
 
+#[tracing::instrument(skip(args), ret, err)]
+pub fn native_println(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native 'println' function");
+    if args.is_empty() {
+        println!(); // Print a newline if no arguments
+        return Ok(Expr::Nil);
+    }
+
+    let format_str_expr = &args[0];
+    let format_str = match format_str_expr {
+        Expr::String(s) => s,
+        _ => {
+            return Err(LispError::TypeError {
+                expected: "String (format)".to_string(),
+                found: format!("{:?}", format_str_expr),
+            });
+        }
+    };
+
+    let mut arg_iter = args.iter().skip(1);
+    let mut result_string = String::new();
+    let mut last_pos = 0;
+
+    while let Some(percent_s_pos) = format_str[last_pos..].find("%s") {
+        let current_segment_start = last_pos + percent_s_pos;
+        result_string.push_str(&format_str[last_pos..current_segment_start]);
+
+        if let Some(arg_to_print) = arg_iter.next() {
+            result_string.push_str(&arg_to_print.to_lisp_string());
+        } else {
+            // Not enough arguments for %s, append %s literally
+            result_string.push_str("%s");
+        }
+        last_pos = current_segment_start + 2; // Move past "%s"
+    }
+    result_string.push_str(&format_str[last_pos..]); // Append remaining part of format string
+
+    // If there are unused arguments, it's not an error for this simple println,
+    // they are just ignored. More robust formatters might error or have different behavior.
+
+    println!("{}", result_string);
+    Ok(Expr::Nil) // println typically returns Nil or an equivalent
+}
+
+
 // Future built-in functions will go here.
 
 #[cfg(test)]
 mod tests {
-    use super::{native_add, native_equals}; // Import parent module's functions
+    use super::{native_add, native_equals, native_println}; // Import parent module's functions
     use crate::engine::ast::{Expr, LispFunction, NativeFunction}; // Added NativeFunction
     use crate::engine::env::Environment;
     use crate::engine::eval::{LispError, eval}; // Need main eval for testing integration
@@ -1222,5 +1267,119 @@ mod tests {
                 found: "Bool(true)".to_string()
             })
         );
+    }
+
+    // Tests for native_println
+    // Note: These tests don't check stdout directly, but verify the logic by calling the function.
+    // Actual stdout checking would require more complex test setup (e.g., redirecting stdout).
+    // We trust that if the string formatting is correct, println! macro works.
+
+    #[test]
+    fn test_native_println_no_args() {
+        init_test_logging();
+        // (println) - should just print a newline and return Nil
+        assert_eq!(native_println(vec![]), Ok(Expr::Nil));
+    }
+
+    #[test]
+    fn test_native_println_simple_string() {
+        init_test_logging();
+        // (println "hello")
+        let args = vec![Expr::String("hello".to_string())];
+        assert_eq!(native_println(args), Ok(Expr::Nil));
+        // Expected output to stdout: "hello"
+    }
+
+    #[test]
+    fn test_native_println_with_one_interpolation() {
+        init_test_logging();
+        // (println "Hello, %s!" "world")
+        let args = vec![
+            Expr::String("Hello, %s!".to_string()),
+            Expr::String("world".to_string()),
+        ];
+        assert_eq!(native_println(args), Ok(Expr::Nil));
+        // Expected output to stdout: "Hello, world!"
+    }
+
+    #[test]
+    fn test_native_println_with_multiple_interpolations() {
+        init_test_logging();
+        // (println "Name: %s, Age: %s" "Alice" (Number 30))
+        let args = vec![
+            Expr::String("Name: %s, Age: %s".to_string()),
+            Expr::String("Alice".to_string()),
+            Expr::Number(30.0),
+        ];
+        assert_eq!(native_println(args), Ok(Expr::Nil));
+        // Expected output to stdout: "Name: Alice, Age: 30"
+    }
+
+    #[test]
+    fn test_native_println_not_enough_args_for_interpolation() {
+        init_test_logging();
+        // (println "Hello, %s %s" "world")
+        let args = vec![
+            Expr::String("Hello, %s %s".to_string()),
+            Expr::String("world".to_string()),
+        ];
+        assert_eq!(native_println(args), Ok(Expr::Nil));
+        // Expected output to stdout: "Hello, world %s" (second %s is literal)
+    }
+
+    #[test]
+    fn test_native_println_too_many_args_for_interpolation() {
+        init_test_logging();
+        // (println "Hello, %s" "world" "extra")
+        let args = vec![
+            Expr::String("Hello, %s".to_string()),
+            Expr::String("world".to_string()),
+            Expr::String("extra".to_string()),
+        ];
+        assert_eq!(native_println(args), Ok(Expr::Nil));
+        // Expected output to stdout: "Hello, world" (extra arg ignored)
+    }
+
+    #[test]
+    fn test_native_println_no_interpolation_specifiers() {
+        init_test_logging();
+        // (println "Just a string" "arg1" "arg2")
+        let args = vec![
+            Expr::String("Just a string".to_string()),
+            Expr::String("arg1".to_string()),
+            Expr::String("arg2".to_string()),
+        ];
+        assert_eq!(native_println(args), Ok(Expr::Nil));
+        // Expected output to stdout: "Just a string"
+    }
+
+    #[test]
+    fn test_native_println_format_string_not_a_string() {
+        init_test_logging();
+        // (println 123 "world")
+        let args = vec![Expr::Number(123.0), Expr::String("world".to_string())];
+        assert_eq!(
+            native_println(args),
+            Err(LispError::TypeError {
+                expected: "String (format)".to_string(),
+                found: "Number(123.0)".to_string()
+            })
+        );
+    }
+
+    #[test]
+    fn test_native_println_interpolating_various_types() {
+        init_test_logging();
+        // (println "Sym: %s, Num: %s, Bool: %s, Nil: %s, List: %s" 'foo 123 true nil '(1 2))
+        let args = vec![
+            Expr::String("Sym: %s, Num: %s, Bool: %s, Nil: %s, List: %s".to_string()),
+            Expr::Symbol("foo".to_string()),
+            Expr::Number(123.0),
+            Expr::Bool(true),
+            Expr::Nil,
+            Expr::List(vec![Expr::Number(1.0), Expr::Number(2.0)]),
+        ];
+        assert_eq!(native_println(args), Ok(Expr::Nil));
+        // Expected output: "Sym: foo, Num: 123, Bool: true, Nil: nil, List: (1 2)"
     }
 }

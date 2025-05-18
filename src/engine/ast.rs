@@ -41,6 +41,26 @@ pub enum Expr {
     Module(LispModule), // New variant for modules
 }
 
+impl Expr {
+    /// Provides a user-friendly string representation of an expression, suitable for printing.
+    pub fn to_lisp_string(&self) -> String {
+        match self {
+            Expr::Symbol(s) => s.clone(),
+            Expr::Number(n) => n.to_string(),
+            Expr::List(list) => {
+                let Sexprs: Vec<String> = list.iter().map(|exp| exp.to_lisp_string()).collect();
+                format!("({})", Sexprs.join(" "))
+            }
+            Expr::Function(_) => "<function>".to_string(), // Simplified representation
+            Expr::NativeFunction(nf) => format!("<native_function:{}>", nf.name),
+            Expr::Bool(b) => b.to_string(),
+            Expr::Nil => "nil".to_string(),
+            Expr::String(s) => s.clone(), // For strings, return their content
+            Expr::Module(m) => format!("<module:{}>", m.path.display()),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct LispModule {
     pub path: std::path::PathBuf, // Changed to PathBuf for canonical paths
