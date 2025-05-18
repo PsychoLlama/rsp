@@ -13,6 +13,7 @@ pub struct Environment {
 
 impl Environment {
     /// Creates a new, empty root environment without any prelude functions.
+    #[allow(dead_code)] // This is used by tests in other modules
     pub fn new() -> Rc<RefCell<Self>> {
         debug!("Creating new empty root environment");
         Rc::new(RefCell::new(Environment {

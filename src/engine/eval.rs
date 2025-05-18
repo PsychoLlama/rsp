@@ -10,12 +10,14 @@ use tracing::{debug, error, instrument, trace};
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum LispError {
     #[error("Evaluation error: {0}")]
+    #[allow(dead_code)] // May be used in future development
     Evaluation(String),
     #[error("Type error: expected {expected}, found {found}")]
     TypeError { expected: String, found: String },
     #[error("Undefined symbol: {0}")]
     UndefinedSymbol(String),
     #[error("Invalid arguments for operator '{operator}': {message}")]
+    #[allow(dead_code)] // May be used in future development
     InvalidArguments { operator: String, message: String },
     #[error("Arity mismatch: {0}")]
     ArityMismatch(String),
