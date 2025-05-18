@@ -102,35 +102,42 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
 
                     // 1. Resolve or evaluate the first element of the list to get the function expression.
                     let func_expr_to_call = match first_form {
-                        Expr::Symbol(s) if s.contains('/') => {
-                            // Handle "module/member" syntax
-                            let parts: Vec<&str> = s.splitn(2, '/').collect();
-                            if parts.len() == 2 {
-                                let module_name = parts[0];
-                                let member_name = parts[1];
-                                trace!(module_name, member_name, "Attempting to resolve module member symbol");
-
-                                match env.borrow().get(module_name) {
-                                    Some(Expr::Module(lisp_module)) => {
-                                        match lisp_module.env.borrow().get(member_name) {
-                                            Some(member_expr) => Ok(member_expr), // Return the resolved expression from module
-                                            None => Err(LispError::MemberNotFoundInModule {
-                                                module: module_name.to_string(),
-                                                member: member_name.to_string(),
-                                            }),
+                        Expr::Symbol(s) => {
+                            if s.contains('/') {
+                                let parts: Vec<&str> = s.splitn(2, '/').collect();
+                                // Ensure module_name and member_name are not empty for a valid module path.
+                                if parts.len() == 2 && !parts[0].is_empty() && !parts[1].is_empty() {
+                                    let module_name = parts[0];
+                                    let member_name = parts[1];
+                                    trace!(module_name, member_name, "Attempting to resolve symbol as module/member path");
+                                    match env.borrow().get(module_name) {
+                                        Some(Expr::Module(lisp_module)) => {
+                                            match lisp_module.env.borrow().get(member_name) {
+                                                Some(member_expr) => Ok(member_expr),
+                                                None => Err(LispError::MemberNotFoundInModule {
+                                                    module: module_name.to_string(),
+                                                    member: member_name.to_string(),
+                                                }),
+                                            }
                                         }
+                                        Some(_) => Err(LispError::NotAModule(module_name.to_string())),
+                                        None => Err(LispError::UndefinedSymbol(module_name.to_string())),
                                     }
-                                    Some(_) => Err(LispError::NotAModule(module_name.to_string())),
-                                    None => Err(LispError::UndefinedSymbol(module_name.to_string())),
+                                } else {
+                                    // Symbol contains '/' but not in valid module/member format (e.g., "/", "/foo", "foo/", "foo//bar").
+                                    // Treat as a regular symbol.
+                                    trace!(symbol_name = %s, "Symbol contains '/' but not a valid module/member path, evaluating as regular symbol");
+                                    eval(first_form, Rc::clone(&env))
                                 }
                             } else {
-                                // This case should ideally not be reached if s.contains('/')
-                                // Fallback: evaluate the symbol as is (might lead to UndefinedSymbol)
+                                // Symbol does not contain '/', treat as regular symbol.
+                                trace!(symbol_name = %s, "Symbol does not contain '/', evaluating as regular symbol");
                                 eval(first_form, Rc::clone(&env))
                             }
                         }
                         _ => {
-                            // For non-namespaced symbols or other expression types (e.g., a list that evaluates to a function)
+                            // First form is not a symbol (e.g., a list that evaluates to a function).
+                            trace!(?first_form, "First form is not a symbol, evaluating it to get function");
                             eval(first_form, Rc::clone(&env))
                         }
                     }?; // func_expr_to_call is the resolved Expr to be called
