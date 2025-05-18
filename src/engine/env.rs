@@ -32,17 +32,52 @@ impl Environment {
 
         // Define prelude functions
         // Each tuple is (Lisp name, Rust function pointer)
-        const PRELUDE_FUNCTIONS: &[(&str, crate::engine::ast::NativeFn)] = &[
+        const PRELUDE_NATIVE_FUNCTIONS: &[(&str, crate::engine::ast::NativeFn)] = &[
             ("+", native_add),
             ("=", native_equals),
             ("*", native_multiply),
-            // Add other prelude functions here as they are implemented
+            ("println", crate::engine::builtins::native_println), // Added println
         ];
 
+        const MATH_FUNCTION_NAMES: &[&str] = &["+", "=", "*"];
+
+        // Create the math module environment
+        let math_module_env = Rc::new(RefCell::new(Environment {
+            bindings: HashMap::new(),
+            outer: None, 
+        }));
+
         {
-            let mut env_borrowed = env_rc.borrow_mut();
-            for (name, func) in PRELUDE_FUNCTIONS {
-                env_borrowed.define(
+            let mut math_env_borrowed = math_module_env.borrow_mut();
+            for (name, func) in PRELUDE_NATIVE_FUNCTIONS {
+                if MATH_FUNCTION_NAMES.contains(name) {
+                    // Define math functions in math module's env
+                    math_env_borrowed.define(
+                        name.to_string(),
+                        Expr::NativeFunction(NativeFunction {
+                            name: name.to_string(),
+                            func: *func,
+                        }),
+                    );
+                }
+            }
+        }
+
+        // Create the math module Expr
+        let math_module = Expr::Module(crate::engine::ast::LispModule {
+            path: std::path::PathBuf::from("builtin:math"), // Virtual path for built-in module
+            env: math_module_env,
+        });
+
+        // Define functions directly in the root prelude AND define the 'math' module
+        {
+            let mut root_env_borrowed = env_rc.borrow_mut();
+            // Define math module in root prelude
+            root_env_borrowed.define("math".to_string(), math_module);
+
+            // Define all prelude functions directly in root prelude for shorthand access
+            for (name, func) in PRELUDE_NATIVE_FUNCTIONS {
+                root_env_borrowed.define(
                     name.to_string(),
                     Expr::NativeFunction(NativeFunction {
                         name: name.to_string(),
