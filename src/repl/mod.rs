@@ -1,6 +1,6 @@
 use crate::engine::env::Environment;
 use rustyline::error::ReadlineError;
-use rustyline::Editor;
+use rustyline::{Editor, DefaultHistory};
 use std::cell::RefCell;
 use std::rc::Rc;
 use tracing::info;
@@ -8,7 +8,7 @@ use tracing::info;
 #[tracing::instrument(skip(env))]
 pub fn start_repl(env: Rc<RefCell<Environment>>) -> anyhow::Result<()> {
     info!("Starting REPL session with rustyline");
-    let mut rl = Editor::<()>::new()?; // Using a simple helper type for now
+    let mut rl = Editor::<(), DefaultHistory>::new()?; // Specify Helper as () and History as DefaultHistory
     let mut line_number = 1;
 
     // TODO: Consider loading history if/when implementing it
