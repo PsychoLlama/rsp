@@ -2,12 +2,12 @@ use nom::{
     IResult,
     Parser,      // Import the Parser trait to use its methods like .map() and .parse()
     branch::alt, // For trying multiple parsers
-    bytes::complete::{tag, is_not}, // Removed escaped_transform
+    bytes::complete::{is_not, tag}, // Removed escaped_transform
     character::complete::multispace0, // For handling whitespace
     character::complete::{char, multispace1, satisfy}, // Removed none_of, For character-level parsing & whitespace
-    combinator::{recognize, verify}, // Added verify
-    multi::{many0, separated_list0, fold_many0}, // Added fold_many0
-    number::complete::double, // For parsing f64 numbers
+    combinator::{recognize, verify},                   // Added verify
+    multi::{fold_many0, many0, separated_list0},       // Added fold_many0
+    number::complete::double,                          // For parsing f64 numbers
     sequence::{delimited, pair, preceded, terminated}, // For sequencing parsers
 };
 use tracing::trace; // For logging parser activity
@@ -70,7 +70,8 @@ fn parse_escaped_char(input: &str) -> IResult<&str, String> {
             tag("t").map(|_| "\t".to_string()),
             // Add other escapes here if needed, e.g., unicode \uXXXX
         )),
-    ).parse(input)
+    )
+    .parse(input)
 }
 
 // Parses a string literal e.g. "hello world" or "escaped \" char" - raw token.

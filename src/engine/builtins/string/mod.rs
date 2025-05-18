@@ -98,63 +98,63 @@ fn trim(args: Vec<Expr>) -> Result<Expr, LispError> {
 pub fn create_string_module() -> Expr {
     trace!("Creating string module");
     let string_env_rc = Environment::new(); // Modules have their own environment
-    
+
     // Scope the mutable borrow so it's dropped before string_env_rc is moved
     {
         let mut string_env_borrowed = string_env_rc.borrow_mut();
         let functions_to_define = HashMap::from([
             (
                 "concat".to_string(), // Name within the module
-            Expr::NativeFunction(NativeFunction {
-                name: "string/concat".to_string(), // Unique name for debugging
-                func: concat,
-            }),
-        ),
-        (
-            "reverse".to_string(),
-            Expr::NativeFunction(NativeFunction {
-                name: "string/reverse".to_string(),
-                func: reverse,
-            }),
-        ),
-        (
-            "len".to_string(),
-            Expr::NativeFunction(NativeFunction {
-                name: "string/len".to_string(),
-                func: len,
-            }),
-        ),
-        (
-            "to-upper".to_string(),
-            Expr::NativeFunction(NativeFunction {
-                name: "string/to-upper".to_string(),
-                func: to_upper,
-            }),
-        ),
-        (
-            "to-lower".to_string(),
-            Expr::NativeFunction(NativeFunction {
-                name: "string/to-lower".to_string(),
-                func: to_lower,
-            }),
-        ),
-        (
-            "trim".to_string(),
-            Expr::NativeFunction(NativeFunction {
-                name: "string/trim".to_string(),
-                func: trim,
-            }),
-        ),
-    ]);
+                Expr::NativeFunction(NativeFunction {
+                    name: "string/concat".to_string(), // Unique name for debugging
+                    func: concat,
+                }),
+            ),
+            (
+                "reverse".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "string/reverse".to_string(),
+                    func: reverse,
+                }),
+            ),
+            (
+                "len".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "string/len".to_string(),
+                    func: len,
+                }),
+            ),
+            (
+                "to-upper".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "string/to-upper".to_string(),
+                    func: to_upper,
+                }),
+            ),
+            (
+                "to-lower".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "string/to-lower".to_string(),
+                    func: to_lower,
+                }),
+            ),
+            (
+                "trim".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "string/trim".to_string(),
+                    func: trim,
+                }),
+            ),
+        ]);
 
-    for (name, func_expr) in functions_to_define {
+        for (name, func_expr) in functions_to_define {
             string_env_borrowed.define(name, func_expr);
         }
     } // string_env_borrowed is dropped here
 
     Expr::Module(LispModule {
         path: PathBuf::from("builtin:string"), // Conventional path for built-in modules
-        env: string_env_rc, // Now string_env_rc can be moved
+        env: string_env_rc,                    // Now string_env_rc can be moved
     })
 }
 
@@ -193,10 +193,8 @@ mod tests {
             // Use the new public method to get bindings
             for (fn_name_in_module, func_expr) in module_data.env.borrow().get_all_bindings() {
                 // Define functions like "string.concat", "string.len" in the test environment
-                env.borrow_mut().define(
-                    format!("string.{}", fn_name_in_module),
-                    func_expr.clone(),
-                );
+                env.borrow_mut()
+                    .define(format!("string.{}", fn_name_in_module), func_expr.clone());
             }
         } else {
             panic!("create_string_module did not return a LispModule");
@@ -215,7 +213,7 @@ mod tests {
 
         let result_single_arg = eval_str(r#"(string.concat "test")"#, env.clone()).unwrap();
         assert_eq!(result_single_arg, Expr::String("test".to_string()));
-        
+
         let err_type = eval_str(r#"(string.concat "a" 1)"#, env).unwrap_err();
         assert!(matches!(err_type, LispError::TypeError { expected, .. } if expected == "String"));
     }
@@ -257,7 +255,7 @@ mod tests {
         let env = env_with_testable_string_functions();
         let result = eval_str(r#"(string.to-upper "hello World 123")"#, env.clone()).unwrap();
         assert_eq!(result, Expr::String("HELLO WORLD 123".to_string()));
-        
+
         let err_arity = eval_str(r#"(string.to-upper)"#, env.clone()).unwrap_err();
         assert!(matches!(err_arity, LispError::ArityMismatch(_)));
 
@@ -286,13 +284,13 @@ mod tests {
 
         let result_no_trim_needed = eval_str(r#"(string.trim "hello")"#, env.clone()).unwrap();
         assert_eq!(result_no_trim_needed, Expr::String("hello".to_string()));
-        
+
         let result_empty_after_trim = eval_str(r#"(string.trim "   ")"#, env.clone()).unwrap();
         assert_eq!(result_empty_after_trim, Expr::String("".to_string()));
 
         let err_arity = eval_str(r#"(string.trim)"#, env.clone()).unwrap_err();
         assert!(matches!(err_arity, LispError::ArityMismatch(_)));
-        
+
         let err_type = eval_str(r#"(string.trim 1)"#, env).unwrap_err();
         assert!(matches!(err_type, LispError::TypeError { expected, .. } if expected == "String"));
     }
