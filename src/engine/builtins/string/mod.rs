@@ -1,10 +1,10 @@
 use crate::engine::ast::{Expr, LispModule, NativeFunction};
 use crate::engine::env::Environment;
 use crate::engine::eval::LispError;
-use std::cell::RefCell;
+// Removed unused: use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::rc::Rc;
+// Removed unused: use std::rc::Rc;
 use tracing::{error, trace};
 
 // Helper function to extract a String from an Expr, consistent with extract_number

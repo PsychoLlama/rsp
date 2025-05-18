@@ -74,6 +74,7 @@ impl Environment {
 
     /// Returns a clone of all bindings in the current environment.
     /// Useful for inspection, especially in tests or for module introspection.
+    #[allow(dead_code)] // Used by test helpers in other modules (e.g., string module tests)
     pub fn get_all_bindings(&self) -> Vec<(String, Expr)> {
         self.bindings
             .iter()
