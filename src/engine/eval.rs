@@ -31,6 +31,10 @@ pub enum LispError {
     ModuleLoadError { path: std::path::PathBuf, source: Box<LispError> },
     #[error("I/O error for module '{path:?}': kind: {kind:?}, message: {message}")]
     ModuleIoError { path: std::path::PathBuf, kind: std::io::ErrorKind, message: String },
+    #[error("Symbol '{0}' is not a module, cannot access members.")]
+    NotAModule(String),
+    #[error("Member '{member}' not found in module '{module}'.")]
+    MemberNotFoundInModule { module: String, member: String },
     // Add more specific errors as the interpreter develops
 }
 
@@ -84,8 +88,41 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                 // Attempt to evaluate as a function call
                 _ => {
                     trace!("First element is not a known special form, attempting function call");
-                    // 1. Evaluate the first element of the list (the potential function)
-                    let func_expr = eval(first_form, Rc::clone(&env))?;
+                    
+                    // 1. Resolve or evaluate the first element of the list to get the function expression.
+                    let func_expr = match first_form {
+                        Expr::Symbol(s) if s.contains('/') => {
+                            // Handle "module/member" syntax
+                            let parts: Vec<&str> = s.splitn(2, '/').collect();
+                            if parts.len() == 2 {
+                                let module_name = parts[0];
+                                let member_name = parts[1];
+                                trace!(module_name, member_name, "Attempting to resolve module member symbol");
+
+                                match env.borrow().get(module_name) {
+                                    Some(Expr::Module(lisp_module)) => {
+                                        match lisp_module.env.borrow().get(member_name) {
+                                            Some(member_expr) => Ok(member_expr), // Return the resolved expression from module
+                                            None => Err(LispError::MemberNotFoundInModule {
+                                                module: module_name.to_string(),
+                                                member: member_name.to_string(),
+                                            }),
+                                        }
+                                    }
+                                    Some(_) => Err(LispError::NotAModule(module_name.to_string())),
+                                    None => Err(LispError::UndefinedSymbol(module_name.to_string())),
+                                }
+                            } else {
+                                // This case should ideally not be reached if s.contains('/')
+                                // Fallback: evaluate the symbol as is (might lead to UndefinedSymbol)
+                                eval(first_form, Rc::clone(&env))
+                            }
+                        }
+                        _ => {
+                            // For non-namespaced symbols or other expression types (e.g., a list that evaluates to a function)
+                            eval(first_form, Rc::clone(&env))
+                        }
+                    }?; // func_expr is the resolved Expr to be called
 
                     match func_expr {
                         Expr::Function(lisp_fn) => {
