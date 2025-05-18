@@ -1,7 +1,8 @@
 use crate::engine::ast::{Expr, NativeFunction};
+use crate::engine::builtins::log::create_log_module;
 use crate::engine::builtins::math::{
     create_math_module, native_add, native_equals, native_multiply,
-}; // Updated path
+};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -32,35 +33,11 @@ impl Environment {
             outer: None,
         }));
 
-        const LOG_FUNCTION_NAMES_MAP: &[(&str, crate::engine::ast::NativeFn)] = &[
-            ("info", crate::engine::builtins::log::native_log_info),
-            ("error", crate::engine::builtins::log::native_log_error),
-        ];
-
         // Create the math module using its dedicated function
         let math_module = create_math_module();
 
-        // Create the log module environment
-        let log_module_env = Rc::new(RefCell::new(Environment {
-            bindings: HashMap::new(),
-            outer: None,
-        }));
-        {
-            let mut log_env_borrowed = log_module_env.borrow_mut();
-            for (name, func) in LOG_FUNCTION_NAMES_MAP {
-                log_env_borrowed.define(
-                    name.to_string(),
-                    Expr::NativeFunction(NativeFunction {
-                        name: name.to_string(),
-                        func: *func,
-                    }),
-                );
-            }
-        }
-        let log_module = Expr::Module(crate::engine::ast::LispModule {
-            path: std::path::PathBuf::from("builtin:log"),
-            env: log_module_env,
-        });
+        // Create the log module using its dedicated function
+        let log_module = create_log_module();
 
         // Define functions and modules in the root prelude
         {

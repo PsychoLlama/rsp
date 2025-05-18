@@ -1,5 +1,8 @@
-use crate::engine::ast::Expr;
+use crate::engine::ast::{Expr, LispModule, NativeFunction};
+use crate::engine::env::Environment;
 use crate::engine::eval::LispError;
+use std::collections::HashMap;
+use std::path::PathBuf;
 use tracing::{instrument, trace};
 
 // Helper function for log/info and log/error
@@ -54,9 +57,42 @@ pub fn native_log_error(args: Vec<Expr>) -> Result<Expr, LispError> {
     _format_log_message_and_write(args, |s| eprintln!("{}", s))
 }
 
+pub fn create_log_module() -> Expr {
+    trace!("Creating log module");
+    let log_env_rc = Environment::new();
+    let functions_to_define = HashMap::from([
+        (
+            "info".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "info".to_string(),
+                func: native_log_info,
+            }),
+        ),
+        (
+            "error".to_string(),
+            Expr::NativeFunction(NativeFunction {
+                name: "error".to_string(),
+                func: native_log_error,
+            }),
+        ),
+    ]);
+
+    {
+        let mut log_env_borrowed = log_env_rc.borrow_mut();
+        for (name, expr) in functions_to_define {
+            log_env_borrowed.define(name, expr);
+        }
+    }
+
+    Expr::Module(LispModule {
+        path: PathBuf::from("builtin:log"),
+        env: log_env_rc,
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{native_log_error, native_log_info};
+    use super::{create_log_module, native_log_error, native_log_info};
     use crate::engine::ast::Expr;
     use crate::logging::init_test_logging;
 
