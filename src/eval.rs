@@ -142,11 +142,11 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
 #[cfg(test)]
 mod tests {
     use super::*; // Imports eval, Expr, LispError, Environment, Rc, RefCell
-    use crate::test_utils::setup_tracing; // Use shared setup_tracing
+    use crate::logging::init_test_logging; // Use new logging setup
 
     #[test]
     fn eval_number() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         let expr = Expr::Number(42.0);
         assert_eq!(eval(&expr, env), Ok(Expr::Number(42.0)));
@@ -154,7 +154,7 @@ mod tests {
 
     #[test]
     fn eval_symbol_defined_in_env() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         env.borrow_mut()
             .define("x".to_string(), Expr::Number(100.0));
@@ -164,7 +164,7 @@ mod tests {
 
     #[test]
     fn eval_symbol_defined_in_outer_env() {
-        setup_tracing();
+        init_test_logging();
         let outer_env = Environment::new();
         outer_env
             .borrow_mut()
@@ -176,7 +176,7 @@ mod tests {
 
     #[test]
     fn eval_symbol_shadowed() {
-        setup_tracing();
+        init_test_logging();
         let outer_env = Environment::new();
         outer_env
             .borrow_mut()
@@ -194,7 +194,7 @@ mod tests {
 
     #[test]
     fn eval_symbol_undefined() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         let expr = Expr::Symbol("my_var".to_string());
         assert_eq!(
@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn eval_empty_list() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         let expr = Expr::List(vec![]);
         assert_eq!(eval(&expr, env), Ok(Expr::List(vec![])));
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn eval_true_literal() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         let expr = Expr::Bool(true);
         assert_eq!(eval(&expr, env), Ok(Expr::Bool(true)));
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn eval_false_literal() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         let expr = Expr::Bool(false);
         assert_eq!(eval(&expr, env), Ok(Expr::Bool(false)));
@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn eval_nil_literal() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         let expr = Expr::Nil;
         assert_eq!(eval(&expr, env), Ok(Expr::Nil));
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn eval_non_empty_list_not_implemented() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         let expr = Expr::List(vec![
             Expr::Symbol("unknown_function".to_string()),
@@ -252,7 +252,7 @@ mod tests {
 
     #[test]
     fn eval_call_defined_non_function() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let x 10)
         env.borrow_mut().define("x".to_string(), Expr::Number(10.0));
@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn eval_call_non_function_number() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (1 2 3) - trying to call a number
         let expr = Expr::List(vec![Expr::Number(1.0), Expr::Number(2.0), Expr::Number(3.0)]);
@@ -284,7 +284,7 @@ mod tests {
     // Tests for 'fn' and function calls
     #[test]
     fn eval_fn_definition_and_call() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let my-fn (fn (x) x))
         let define_fn_expr = Expr::List(vec![
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn eval_fn_call_with_multiple_params() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let add (fn (a b) ???)) ; body needs actual addition, which we don't have yet.
         // For now, let's make a function that just returns its second param.
@@ -335,7 +335,7 @@ mod tests {
 
     #[test]
     fn eval_fn_call_arity_mismatch_too_few() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let my-fn (fn (x y) x))
         let define_fn_expr = Expr::List(vec![
@@ -364,7 +364,7 @@ mod tests {
 
     #[test]
     fn eval_fn_call_arity_mismatch_too_many() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let my-fn (fn (x) x))
         let define_fn_expr = Expr::List(vec![
@@ -394,7 +394,7 @@ mod tests {
 
     #[test]
     fn eval_closure_captures_env() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let y 5)
         env.borrow_mut().define("y".to_string(), Expr::Number(5.0));
@@ -427,7 +427,7 @@ mod tests {
 
     #[test]
     fn eval_closure_with_params_and_captured_var() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let adder (fn (x) (fn (y) ???))) ; x+y
         // For now, let's make a function that returns its captured var, ignoring params
@@ -477,7 +477,7 @@ mod tests {
 
      #[test]
     fn eval_recursive_fn_let_style() {
-        setup_tracing();
+        init_test_logging();
         let env = Environment::new();
         // (let fact (fn (n) ...)) - this doesn't work for recursion directly with `let`
         // because `fact` is not in scope inside the `fn` body yet.
