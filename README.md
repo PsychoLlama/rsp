@@ -114,7 +114,7 @@ Module(LispModule { path: "examples/my_program.lisp", env: "<module_env>" })
     (let lib (require 'examples/my_lib))
 
     (log/info (lib/greet "User"))
-    (log/info "Value of pi from lib:" (lib/pi))
+    (log/info "Value of pi from lib:" lib/pi) ; Access variable directly
     ```
 
 3.  Run the main file:
