@@ -23,74 +23,74 @@ fn extract_string(expr: &Expr, op_name: &str) -> Result<String, LispError> {
 }
 
 // Native function for string concatenation: (string.concat s1 s2 ...)
-fn native_string_concat(args: Vec<Expr>) -> Result<Expr, LispError> {
-    trace!("Executing native string function: concat");
+fn concat(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native string function: string/concat");
     let mut result = String::new();
     for (i, arg) in args.iter().enumerate() {
-        let s = extract_string(arg, &format!("string.concat (arg {})", i + 1))?;
+        let s = extract_string(arg, &format!("string/concat (arg {})", i + 1))?;
         result.push_str(&s);
     }
     Ok(Expr::String(result))
 }
 
 // Native function for string reversal: (string.reverse s)
-fn native_string_reverse(args: Vec<Expr>) -> Result<Expr, LispError> {
-    trace!("Executing native string function: reverse");
+fn reverse(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native string function: string/reverse");
     if args.len() != 1 {
-        let msg = format!("string.reverse expects 1 argument, got {}", args.len());
+        let msg = format!("string/reverse expects 1 argument, got {}", args.len());
         error!("{}", msg);
         return Err(LispError::ArityMismatch(msg));
     }
-    let s = extract_string(&args[0], "string.reverse")?;
+    let s = extract_string(&args[0], "string/reverse")?;
     let reversed_s: String = s.chars().rev().collect();
     Ok(Expr::String(reversed_s))
 }
 
 // Native function for string length: (string.len s)
-fn native_string_len(args: Vec<Expr>) -> Result<Expr, LispError> {
-    trace!("Executing native string function: len");
+fn len(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native string function: string/len");
     if args.len() != 1 {
-        let msg = format!("string.len expects 1 argument, got {}", args.len());
+        let msg = format!("string/len expects 1 argument, got {}", args.len());
         error!("{}", msg);
         return Err(LispError::ArityMismatch(msg));
     }
-    let s = extract_string(&args[0], "string.len")?;
+    let s = extract_string(&args[0], "string/len")?;
     Ok(Expr::Number(s.len() as f64))
 }
 
 // Native function for converting string to uppercase: (string.to-upper s)
-fn native_string_to_upper(args: Vec<Expr>) -> Result<Expr, LispError> {
-    trace!("Executing native string function: to-upper");
+fn to_upper(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native string function: string/to-upper");
     if args.len() != 1 {
-        let msg = format!("string.to-upper expects 1 argument, got {}", args.len());
+        let msg = format!("string/to-upper expects 1 argument, got {}", args.len());
         error!("{}", msg);
         return Err(LispError::ArityMismatch(msg));
     }
-    let s = extract_string(&args[0], "string.to-upper")?;
+    let s = extract_string(&args[0], "string/to-upper")?;
     Ok(Expr::String(s.to_uppercase()))
 }
 
 // Native function for converting string to lowercase: (string.to-lower s)
-fn native_string_to_lower(args: Vec<Expr>) -> Result<Expr, LispError> {
-    trace!("Executing native string function: to-lower");
+fn to_lower(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native string function: string/to-lower");
     if args.len() != 1 {
-        let msg = format!("string.to-lower expects 1 argument, got {}", args.len());
+        let msg = format!("string/to-lower expects 1 argument, got {}", args.len());
         error!("{}", msg);
         return Err(LispError::ArityMismatch(msg));
     }
-    let s = extract_string(&args[0], "string.to-lower")?;
+    let s = extract_string(&args[0], "string/to-lower")?;
     Ok(Expr::String(s.to_lowercase()))
 }
 
 // Native function for trimming whitespace: (string.trim s)
-fn native_string_trim(args: Vec<Expr>) -> Result<Expr, LispError> {
-    trace!("Executing native string function: trim");
+fn trim(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native string function: string/trim");
     if args.len() != 1 {
-        let msg = format!("string.trim expects 1 argument, got {}", args.len());
+        let msg = format!("string/trim expects 1 argument, got {}", args.len());
         error!("{}", msg);
         return Err(LispError::ArityMismatch(msg));
     }
-    let s = extract_string(&args[0], "string.trim")?;
+    let s = extract_string(&args[0], "string/trim")?;
     Ok(Expr::String(s.trim().to_string()))
 }
 
@@ -106,43 +106,43 @@ pub fn create_string_module() -> Expr {
             (
                 "concat".to_string(), // Name within the module
             Expr::NativeFunction(NativeFunction {
-                name: "string.concat".to_string(), // Unique name for debugging
-                func: native_string_concat,
+                name: "string/concat".to_string(), // Unique name for debugging
+                func: concat,
             }),
         ),
         (
             "reverse".to_string(),
             Expr::NativeFunction(NativeFunction {
-                name: "string.reverse".to_string(),
-                func: native_string_reverse,
+                name: "string/reverse".to_string(),
+                func: reverse,
             }),
         ),
         (
             "len".to_string(),
             Expr::NativeFunction(NativeFunction {
-                name: "string.len".to_string(),
-                func: native_string_len,
+                name: "string/len".to_string(),
+                func: len,
             }),
         ),
         (
             "to-upper".to_string(),
             Expr::NativeFunction(NativeFunction {
-                name: "string.to-upper".to_string(),
-                func: native_string_to_upper,
+                name: "string/to-upper".to_string(),
+                func: to_upper,
             }),
         ),
         (
             "to-lower".to_string(),
             Expr::NativeFunction(NativeFunction {
-                name: "string.to-lower".to_string(),
-                func: native_string_to_lower,
+                name: "string/to-lower".to_string(),
+                func: to_lower,
             }),
         ),
         (
             "trim".to_string(),
             Expr::NativeFunction(NativeFunction {
-                name: "string.trim".to_string(),
-                func: native_string_trim,
+                name: "string/trim".to_string(),
+                func: trim,
             }),
         ),
     ]);
