@@ -40,7 +40,7 @@ thread_local! {
 ///     Ok((Option<Expr>, bool)): The last evaluated expression and a flag indicating if any expressions were evaluated.
 ///     Err(String): An error message if parsing or evaluation fails.
 #[tracing::instrument(skip(source_content, env), fields(source_name = %source_name))]
-fn evaluate_source(
+pub(crate) fn evaluate_source( // Made pub(crate) to be accessible by the repl module
     source_content: &str,
     env: Rc<RefCell<Environment>>,
     source_name: &str,
