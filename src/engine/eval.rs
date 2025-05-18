@@ -1,7 +1,7 @@
 use crate::engine::ast::Expr;
-use crate::engine::builtins;
+// builtins direct import might not be needed if all calls are fully qualified to submodules
 use crate::engine::env::Environment;
-use crate::engine::special_forms; // Added for special form constants
+use crate::engine::special_forms as special_form_constants; // Renamed for clarity
 use std::cell::RefCell;
 use std::rc::Rc;
 use thiserror::Error;
@@ -79,18 +79,20 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
             // Handle special forms and function calls
             let first_form = &list[0];
             match first_form {
-                Expr::Symbol(s) if s == special_forms::LET => {
-                    builtins::eval_let(&list[1..], Rc::clone(&env))
+                Expr::Symbol(s) if s == special_form_constants::LET => {
+                    crate::engine::builtins::special_forms::eval_let(&list[1..], Rc::clone(&env))
                 }
-                Expr::Symbol(s) if s == special_forms::QUOTE => builtins::eval_quote(&list[1..]),
-                Expr::Symbol(s) if s == special_forms::FN => {
-                    builtins::eval_fn(&list[1..], Rc::clone(&env))
+                Expr::Symbol(s) if s == special_form_constants::QUOTE => {
+                    crate::engine::builtins::special_forms::eval_quote(&list[1..])
                 }
-                Expr::Symbol(s) if s == special_forms::IF => {
-                    builtins::eval_if(&list[1..], Rc::clone(&env))
+                Expr::Symbol(s) if s == special_form_constants::FN => {
+                    crate::engine::builtins::special_forms::eval_fn(&list[1..], Rc::clone(&env))
                 }
-                Expr::Symbol(s) if s == special_forms::REQUIRE => {
-                    builtins::eval_require(&list[1..], Rc::clone(&env))
+                Expr::Symbol(s) if s == special_form_constants::IF => {
+                    crate::engine::builtins::special_forms::eval_if(&list[1..], Rc::clone(&env))
+                }
+                Expr::Symbol(s) if s == special_form_constants::REQUIRE => {
+                    crate::engine::builtins::special_forms::eval_require(&list[1..], Rc::clone(&env))
                 }
                 // Attempt to evaluate as a function call
                 _ => {
