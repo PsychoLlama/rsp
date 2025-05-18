@@ -4,10 +4,10 @@
 
 ; Assuming my_math_lib.lisp is in the same directory or a known module path.
 ; The exact path might need adjustment based on your interpreter's module resolution.
-; Using a relative path:
-(let lib (require "./my_math_lib.lisp"))
-; Or if your interpreter automatically adds .lisp and searches paths:
-; (let lib (require "my_math_lib"))
+; Using a path relative to the project root (where cargo run is executed):
+(let lib (require 'examples/my_math_lib))
+; The 'require' form will use the symbol's name "examples/my_math_lib"
+; and the module loader should append ".lisp" to find "examples/my_math_lib.lisp".
 
 
 (log/info "use_my_lib.lisp: my_math_lib required. Accessing functions...")
