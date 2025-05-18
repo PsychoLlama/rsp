@@ -136,9 +136,9 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
                     for arg_expr in &list[1..] {
                         evaluated_args.push(eval(arg_expr, Rc::clone(&env))?);
                     }
-                    
+
                     // 3. Apply the function
-                    apply(func_expr_to_call, evaluated_args, env)
+                    apply(func_expr_to_call, evaluated_args, Rc::clone(&env)) // Pass env as calling_env
                 }
             }
         }
@@ -146,13 +146,13 @@ pub fn eval(expr: &Expr, env: Rc<RefCell<Environment>>) -> Result<Expr, LispErro
 }
 
 /// Applies a function (Lisp or native) to a list of evaluated arguments.
-#[instrument(skip(func_expr, evaluated_args, calling_env), fields(func = ?func_expr, args = ?evaluated_args), ret, err)]
+#[instrument(skip(func_expr_to_call, evaluated_args, calling_env), fields(func = ?func_expr_to_call, args = ?evaluated_args), ret, err)]
 fn apply(
-    func_expr: Expr,
+    func_expr_to_call: Expr, // Renamed to match context from eval
     evaluated_args: Vec<Expr>,
-    _calling_env: Rc<RefCell<Environment>>, // Keep for potential future use (e.g. dynamic scope features)
+    calling_env: Rc<RefCell<Environment>>, // Use this env for eval if needed by native funcs, or for dynamic scope
 ) -> Result<Expr, LispError> {
-    match func_expr {
+    match func_expr_to_call {
         Expr::Function(lisp_fn) => {
             debug!(function = ?lisp_fn, "Applying LispFunction");
 
