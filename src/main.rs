@@ -171,8 +171,9 @@ fn main() -> Result<()> {
         Commands::Repl(_repl_args) => {
             info!("Starting REPL mode");
             let repl_env = Environment::new_with_prelude();
+            // The start_repl function no longer takes reader/writer arguments
             if let Err(e) = crate::repl::start_repl(repl_env) {
-                eprintln!("REPL Error: {}", e);
+                eprintln!("REPL exited with an error: {}", e);
             }
         }
     }
