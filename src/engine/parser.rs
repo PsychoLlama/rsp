@@ -1,15 +1,14 @@
 use nom::{
     IResult,
     Parser, // Import the Parser trait to use its methods like .map() and .parse()
-    // combinator::map, // Removed as Parser::map method is used
-    branch::alt,                                       // For trying multiple parsers
-    bytes::complete::tag,                              // For matching literal strings
-    character::complete::multispace0, // For handling whitespace, removed multispace1
-    character::complete::{multispace1, satisfy}, // For character-level parsing & whitespace
-    combinator::recognize, // For transforming and recognizing parser output (removed map)
-    multi::{many0, separated_list0}, // For repeating parsers
-    number::complete::double, // For parsing f64 numbers
-    sequence::{delimited, pair, preceded, terminated}, // For sequencing parsers (added preceded, terminated)
+    branch::alt,                                           // For trying multiple parsers
+    bytes::complete::{escaped_transform, tag},              // For matching literal strings & escaped strings
+    character::complete::multispace0,     // For handling whitespace
+    character::complete::{char, multispace1, none_of, satisfy}, // For character-level parsing & whitespace
+    combinator::recognize,                // For transforming and recognizing parser output
+    multi::{many0, separated_list0},     // For repeating parsers
+    number::complete::double,             // For parsing f64 numbers
+    sequence::{delimited, pair, preceded, terminated}, // For sequencing parsers
 };
 use tracing::trace; // For logging parser activity
 
@@ -51,6 +50,38 @@ fn parse_false_raw(input: &str) -> IResult<&str, Expr> {
 fn parse_nil_raw(input: &str) -> IResult<&str, Expr> {
     trace!("Attempting to parse raw 'nil' literal token");
     tag("nil").map(|_| Expr::Nil).parse(input)
+}
+
+// Parses a string literal e.g. "hello world" or "escaped \" char" - raw token.
+#[tracing::instrument(level = "trace", skip(input), fields(input = %input))]
+fn parse_string_raw(input: &str) -> IResult<&str, Expr> {
+    trace!("Attempting to parse raw string literal token");
+    delimited(
+        char('"'),
+        // Parses characters between quotes.
+        // `escaped_transform` handles common escapes like \", \\, \n, \r, \t
+        // and also allows any character not in `\` or `"` to be part of the string.
+        // For simplicity, we'll handle a limited set of escapes manually for now.
+        // A more robust solution would use `escaped_transform` or `escaped`.
+        // For now, let's use `recognize` and then process escapes, or a simpler `many0`.
+        // Using `escaped_transform` for better escape handling.
+        escaped_transform(
+            none_of("\"\\"), // Normal characters: any char except " or \
+            '\\',            // Escape character: \
+            alt((
+                // Transformed escape sequences
+                tag("\"").map(|_| "\"".to_string()), // \" -> "
+                tag("\\").map(|_| "\\".to_string()), // \\ -> \
+                tag("n").map(|_| "\n".to_string()),  // \n -> newline
+                tag("r").map(|_| "\r".to_string()),  // \r -> carriage return
+                tag("t").map(|_| "\t".to_string()),  // \t -> tab
+                                                 // Add more escapes like \u{XXXX} if needed
+            )),
+        ),
+        char('"'),
+    )
+    .map(Expr::String)
+    .parse(input)
 }
 
 // Parses a symbol - raw token.
@@ -109,7 +140,8 @@ fn expr_recursive_impl(input: &str) -> IResult<&str, Expr> {
         parse_true_raw,
         parse_false_raw,
         parse_nil_raw,
-        list_raw, // list_raw is now an alternative here
+        parse_string_raw, // Added string literal parser
+        list_raw,         // list_raw is now an alternative here
         parse_symbol_raw,
     ))
     .parse(input)

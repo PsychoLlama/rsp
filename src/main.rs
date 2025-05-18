@@ -10,8 +10,18 @@ use crate::cli::{Cli, Commands};
 use crate::engine::env::Environment;
 use crate::engine::eval::eval;
 use crate::engine::parser::parse_expr;
+use std::collections::HashMap; // For MODULE_CACHE
 use std::fs;
+use std::path::PathBuf; // For MODULE_CACHE keys
 use std::rc::Rc;
+use std::sync::Mutex; // For MODULE_CACHE
+use once_cell::sync::Lazy; // For MODULE_CACHE
+
+// Global cache for loaded modules.
+// Key: Canonicalized absolute path to the module file.
+// Value: The Expr::Module representing the loaded module.
+pub(crate) static MODULE_CACHE: Lazy<Mutex<HashMap<PathBuf, crate::engine::ast::Expr>>> = // Made pub(crate) for clarity
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[tracing::instrument]
 fn main() -> Result<()> {

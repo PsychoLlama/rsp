@@ -25,6 +25,12 @@ pub enum LispError {
     ReservedKeyword(String),
     #[error("Not a function: {0}")]
     NotAFunction(String),
+    #[error("Module not found: {0:?}")]
+    ModuleNotFound(std::path::PathBuf),
+    #[error("Error loading module '{path:?}': {source}")]
+    ModuleLoadError { path: std::path::PathBuf, source: Box<LispError> },
+    #[error("I/O error for module '{path:?}': {source}")]
+    ModuleIoError { path: std::path::PathBuf, source: std::io::Error },
     // Add more specific errors as the interpreter develops
 }
 

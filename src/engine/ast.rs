@@ -37,14 +37,13 @@ pub enum Expr {
     NativeFunction(NativeFunction), // New variant for Rust functions
     Bool(bool),
     Nil,
+    String(String),     // New variant for string literals
     Module(LispModule), // New variant for modules
-                        // Future extensions could include:
-                        // String(String),
 }
 
 #[derive(Clone)]
 pub struct LispModule {
-    pub path: String,
+    pub path: std::path::PathBuf, // Changed to PathBuf for canonical paths
     #[allow(dead_code)] // Will be used when implementing module member access
     pub env: Rc<RefCell<Environment>>,
 }

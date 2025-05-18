@@ -172,29 +172,128 @@ pub fn eval_if(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, Lis
     }
 }
 
-#[tracing::instrument(skip(args, env), fields(args = ?args), ret, err)]
-pub fn eval_require(args: &[Expr], env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
+use std::fs;
+use std::path::PathBuf;
+
+#[tracing::instrument(skip(args, _env), fields(args = ?args), ret, err)] // _env as it's not used directly for require's own logic
+pub fn eval_require(args: &[Expr], _env: Rc<RefCell<Environment>>) -> Result<Expr, LispError> {
     trace!("Executing 'require' special form");
-    // Placeholder implementation
-    // Expects one argument: a string literal (path) or a symbol whose value is a path.
     if args.len() != 1 {
-        error!("'require' special form requires 1 argument (file path), found {}", args.len());
-        return Err(LispError::ArityMismatch(format!(
-            "'require' expects 1 argument, got {}",
+        let msg = format!(
+            "'require' expects 1 argument (path string or symbol), got {}",
             args.len()
-        )));
+        );
+        error!("{}", msg);
+        return Err(LispError::ArityMismatch(msg));
     }
 
-    let path_expr = &args[0];
-    // TODO: Evaluate path_expr if it's a symbol, or directly use if it's a string literal.
-    // For now, assume it's a symbol that needs evaluation or a string literal.
-    // This part will be expanded.
-    debug!(path_expr = ?path_expr, "Path expression for 'require'");
+    let path_specifier_expr = &args[0];
+    let mut relative_path_str = match path_specifier_expr {
+        Expr::String(s) => s.clone(),
+        Expr::Symbol(s) => s.clone(), // Treat symbol name as path directly
+        _ => {
+            let msg = format!(
+                "'require' argument must be a string or symbol, found {:?}",
+                path_specifier_expr
+            );
+            error!("{}", msg);
+            return Err(LispError::TypeError {
+                expected: "String or Symbol path".to_string(),
+                found: format!("{:?}", path_specifier_expr),
+            });
+        }
+    };
+
+    if !relative_path_str.ends_with(".lisp") {
+        relative_path_str.push_str(".lisp");
+    }
+
+    let current_dir = std::env::current_dir().map_err(|e| LispError::ModuleIoError {
+        path: PathBuf::from(relative_path_str.clone()), // Use relative path for error context here
+        source: e,
+    })?;
+    let mut absolute_path = current_dir;
+    absolute_path.push(&relative_path_str);
+
+    let canonical_path = match fs::canonicalize(&absolute_path) {
+        Ok(p) => p,
+        Err(e) => {
+            if e.kind() == std::io::ErrorKind::NotFound {
+                return Err(LispError::ModuleNotFound(absolute_path));
+            } else {
+                return Err(LispError::ModuleIoError { path: absolute_path, source: e });
+            }
+        }
+    };
     
-    // For now, just return Nil to indicate it was called.
-    // Actual file loading and environment merging will be implemented later.
-    error!("'require' special form is not fully implemented yet.");
-    Ok(Expr::Nil) // Or perhaps an error: LispError::Evaluation("Not implemented".to_string())
+    debug!(path_specifier = ?path_specifier_expr, resolved_path = %canonical_path.display(), "Path for 'require'");
+
+    // Check cache
+    {
+        let cache = crate::MODULE_CACHE.lock().unwrap(); // Panics on poison, which is fine for now
+        if let Some(cached_module) = cache.get(&canonical_path) {
+            trace!(path = %canonical_path.display(), "Module found in cache");
+            return Ok(cached_module.clone());
+        }
+    } // Release lock
+
+    // Load and evaluate module
+    let content = match fs::read_to_string(&canonical_path) {
+        Ok(c) => c,
+        Err(e) => return Err(LispError::ModuleIoError { path: canonical_path, source: e }),
+    };
+
+    let module_env = Environment::new_with_prelude();
+    let mut current_module_input: &str = &content;
+
+    loop {
+        current_module_input = current_module_input.trim_start();
+        if current_module_input.is_empty() {
+            break;
+        }
+        match crate::engine::parser::parse_expr(current_module_input) {
+            Ok((remaining, ast)) => {
+                if let Err(e) = crate::engine::eval::eval(&ast, Rc::clone(&module_env)) {
+                    error!(module_path = %canonical_path.display(), error = %e, "Error evaluating expression in module");
+                    return Err(LispError::ModuleLoadError { path: canonical_path, source: Box::new(e) });
+                }
+                current_module_input = remaining;
+            }
+            Err(nom::Err::Error(e)) | Err(nom::Err::Failure(e)) => {
+                if !current_module_input.is_empty() {
+                    let parse_err_msg = format!("Parsing Error in module '{}': {:?}", canonical_path.display(), e);
+                    error!("{}", parse_err_msg);
+                    return Err(LispError::ModuleLoadError {
+                        path: canonical_path,
+                        source: Box::new(LispError::Evaluation(format!("Module parsing error: {}", parse_err_msg))),
+                    });
+                }
+                break; 
+            }
+            Err(nom::Err::Incomplete(_)) => {
+                let msg = format!("Parsing incomplete in module '{}': More input needed.", canonical_path.display());
+                error!("{}", msg);
+                return Err(LispError::ModuleLoadError {
+                    path: canonical_path,
+                    source: Box::new(LispError::Evaluation(msg)),
+                });
+            }
+        }
+    }
+    
+    let new_module = Expr::Module(crate::engine::ast::LispModule {
+        path: canonical_path.clone(),
+        env: module_env,
+    });
+
+    // Add to cache
+    {
+        let mut cache = crate::MODULE_CACHE.lock().unwrap();
+        cache.insert(canonical_path.clone(), new_module.clone());
+        trace!(path = %canonical_path.display(), "Module loaded and cached");
+    }
+
+    Ok(new_module)
 }
 
 // Native Rust functions callable from Lisp (the "prelude" functions)
