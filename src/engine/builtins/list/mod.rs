@@ -1,8 +1,6 @@
 use crate::engine::ast::Expr;
 use crate::engine::env::Environment;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 use tracing::trace;
 
 // Placeholder for actual list functions.
