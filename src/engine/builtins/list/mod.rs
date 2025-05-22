@@ -97,6 +97,40 @@ fn native_list_cdr(args: Vec<Expr>) -> Result<Expr, LispError> {
     }
 }
 
+fn native_list_last(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native list function: list/last");
+    if args.len() != 1 {
+        let msg = format!("list/last expects 1 argument, got {}", args.len());
+        error!("{}", msg);
+        return Err(LispError::ArityMismatch(msg));
+    }
+
+    match &args[0] {
+        Expr::List(list) => {
+            if list.is_empty() {
+                let msg = "list/last cannot operate on an empty list".to_string();
+                error!("{}", msg);
+                Err(LispError::ValueError(msg))
+            } else {
+                Ok(list.last().unwrap().clone()) // .last() is safe due to is_empty check
+            }
+        }
+        Expr::Nil => {
+            let msg = "list/last cannot operate on nil (empty list)".to_string();
+            error!("{}", msg);
+            Err(LispError::ValueError(msg))
+        }
+        other => {
+            let msg = format!("list/last expects a list as argument, got {:?}", other);
+            error!("{}", msg);
+            Err(LispError::TypeError {
+                expected: "List".to_string(),
+                found: format!("{:?}", other),
+            })
+        }
+    }
+}
+
 /// Creates the `list` module with its associated functions.
 pub fn create_list_module() -> Expr {
     trace!("Creating list module");
@@ -125,6 +159,13 @@ pub fn create_list_module() -> Expr {
                 Expr::NativeFunction(NativeFunction {
                     name: "list/cdr".to_string(),
                     func: native_list_cdr,
+                }),
+            ),
+            (
+                "last".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "list/last".to_string(),
+                    func: native_list_last,
                 }),
             ),
         ]);
@@ -324,6 +365,58 @@ mod tests {
         assert!(matches!(result_no_args, Err(LispError::ArityMismatch(_))));
 
         let result_too_many = eval_list_str("(list/cdr '(1) '(2))");
+        assert!(matches!(
+            result_too_many,
+            Err(LispError::ArityMismatch(_))
+        ));
+    }
+
+    // Tests for list/last
+    #[test]
+    fn test_native_list_last_simple() {
+        let result = eval_list_str("(list/last '(1 2 3))").unwrap();
+        assert_eq!(result, Expr::Number(3.0));
+    }
+
+    #[test]
+    fn test_native_list_last_single_element_list() {
+        let result = eval_list_str("(list/last '(a))").unwrap();
+        assert_eq!(result, Expr::Symbol("a".to_string()));
+    }
+
+    #[test]
+    fn test_native_list_last_nested_list() {
+        let result = eval_list_str("(list/last '(1 (2 3)))").unwrap();
+        assert_eq!(
+            result,
+            Expr::List(vec![Expr::Number(2.0), Expr::Number(3.0)])
+        );
+    }
+
+    #[test]
+    fn test_native_list_last_empty_list_error() {
+        let result = eval_list_str("(list/last '())");
+        assert!(matches!(result, Err(LispError::ValueError(_))));
+    }
+
+    #[test]
+    fn test_native_list_last_nil_error() {
+        let result = native_list_last(vec![Expr::Nil]);
+        assert!(matches!(result, Err(LispError::ValueError(_))));
+    }
+
+    #[test]
+    fn test_native_list_last_type_error() {
+        let result = eval_list_str("(list/last 123)");
+        assert!(matches!(result, Err(LispError::TypeError { .. })));
+    }
+
+    #[test]
+    fn test_native_list_last_arity_error() {
+        let result_no_args = eval_list_str("(list/last)");
+        assert!(matches!(result_no_args, Err(LispError::ArityMismatch(_))));
+
+        let result_too_many = eval_list_str("(list/last '(1) '(2))");
         assert!(matches!(
             result_too_many,
             Err(LispError::ArityMismatch(_))
