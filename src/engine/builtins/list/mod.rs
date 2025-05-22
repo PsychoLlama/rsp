@@ -65,8 +65,7 @@ mod tests {
     use crate::engine::eval::{eval, LispError};
     use crate::engine::parser::parse_expr;
     use crate::logging::init_test_logging;
-    use std::cell::RefCell;
-    use std::rc::Rc;
+    // Removed unused imports for RefCell and Rc for the test module
 
     // Helper to evaluate a Lisp string in an environment that includes the list module.
     fn eval_list_str(code: &str) -> Result<Expr, LispError> {
@@ -99,7 +98,8 @@ mod tests {
         // Note: `nil` itself is not directly callable as a list function argument
         // in this manner without `quote`. We test `list/length` with `nil` argument.
         // The function `native_list_length` handles `Expr::Nil` directly.
-        let env = Environment::new_with_prelude();
+        // The `env` variable was unused here as native_list_length doesn't need it for this direct call.
+        init_test_logging(); // Ensure logging is initialized for direct native function tests too
         let result = native_list_length(vec![Expr::Nil]).unwrap();
         assert_eq!(result, Expr::Number(0.0));
     }
