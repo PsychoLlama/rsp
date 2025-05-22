@@ -5,6 +5,7 @@ use crate::engine::builtins::math::{
     native_greater_than_or_equal, native_less_than, native_less_than_or_equal, native_multiply,
     native_subtract,
 };
+use crate::engine::builtins::list::create_list_module;
 use crate::engine::builtins::string::create_string_module;
 use crate::engine::env::Environment;
 use std::cell::RefCell;
@@ -21,11 +22,15 @@ pub fn populate_globals(env: Rc<RefCell<Environment>>) {
     // Create the string module using its dedicated function
     let string_module = create_string_module();
 
+    // Create the list module using its dedicated function
+    let list_module = create_list_module();
+
     // Define functions and modules in the root prelude
     let mut root_env_borrowed = env.borrow_mut();
     root_env_borrowed.define("math".to_string(), math_module);
     root_env_borrowed.define("log".to_string(), log_module);
-    root_env_borrowed.define("string".to_string(), string_module); // Added string module
+    root_env_borrowed.define("string".to_string(), string_module);
+    root_env_borrowed.define("list".to_string(), list_module);
 
     // Define shorthand math functions directly in root prelude
     root_env_borrowed.define(
