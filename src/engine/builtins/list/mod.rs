@@ -29,6 +29,74 @@ fn native_list_length(args: Vec<Expr>) -> Result<Expr, LispError> {
     }
 }
 
+fn native_list_car(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native list function: list/car");
+    if args.len() != 1 {
+        let msg = format!("list/car expects 1 argument, got {}", args.len());
+        error!("{}", msg);
+        return Err(LispError::ArityMismatch(msg));
+    }
+
+    match &args[0] {
+        Expr::List(list) => {
+            if list.is_empty() {
+                let msg = "list/car cannot operate on an empty list".to_string();
+                error!("{}", msg);
+                Err(LispError::ValueError(msg))
+            } else {
+                Ok(list[0].clone())
+            }
+        }
+        Expr::Nil => {
+            let msg = "list/car cannot operate on nil (empty list)".to_string();
+            error!("{}", msg);
+            Err(LispError::ValueError(msg))
+        }
+        other => {
+            let msg = format!("list/car expects a list as argument, got {:?}", other);
+            error!("{}", msg);
+            Err(LispError::TypeError {
+                expected: "List".to_string(),
+                found: format!("{:?}", other),
+            })
+        }
+    }
+}
+
+fn native_list_cdr(args: Vec<Expr>) -> Result<Expr, LispError> {
+    trace!("Executing native list function: list/cdr");
+    if args.len() != 1 {
+        let msg = format!("list/cdr expects 1 argument, got {}", args.len());
+        error!("{}", msg);
+        return Err(LispError::ArityMismatch(msg));
+    }
+
+    match &args[0] {
+        Expr::List(list) => {
+            if list.is_empty() {
+                let msg = "list/cdr cannot operate on an empty list".to_string();
+                error!("{}", msg);
+                Err(LispError::ValueError(msg))
+            } else {
+                Ok(Expr::List(list.iter().skip(1).cloned().collect()))
+            }
+        }
+        Expr::Nil => {
+            let msg = "list/cdr cannot operate on nil (empty list)".to_string();
+            error!("{}", msg);
+            Err(LispError::ValueError(msg))
+        }
+        other => {
+            let msg = format!("list/cdr expects a list as argument, got {:?}", other);
+            error!("{}", msg);
+            Err(LispError::TypeError {
+                expected: "List".to_string(),
+                found: format!("{:?}", other),
+            })
+        }
+    }
+}
+
 /// Creates the `list` module with its associated functions.
 pub fn create_list_module() -> Expr {
     trace!("Creating list module");
@@ -37,13 +105,29 @@ pub fn create_list_module() -> Expr {
     // Scope the mutable borrow so it's dropped before list_env_rc is moved
     {
         let mut list_env_borrowed = list_env_rc.borrow_mut();
-        let functions_to_define: HashMap<String, Expr> = HashMap::from([(
-            "length".to_string(),
-            Expr::NativeFunction(NativeFunction {
-                name: "list/length".to_string(), // Convention: module_name/function_name
-                func: native_list_length,
-            }),
-        )]);
+        let functions_to_define: HashMap<String, Expr> = HashMap::from([
+            (
+                "length".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "list/length".to_string(),
+                    func: native_list_length,
+                }),
+            ),
+            (
+                "car".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "list/car".to_string(),
+                    func: native_list_car,
+                }),
+            ),
+            (
+                "cdr".to_string(),
+                Expr::NativeFunction(NativeFunction {
+                    name: "list/cdr".to_string(),
+                    func: native_list_cdr,
+                }),
+            ),
+        ]);
 
         for (name, func_expr) in functions_to_define {
             list_env_borrowed.define(name, func_expr);
@@ -132,5 +216,117 @@ mod tests {
 
         let result_string = eval_list_str("(list/length \"hello\")");
         assert!(matches!(result_string, Err(LispError::TypeError { .. })));
+    }
+
+    // Tests for list/car
+    #[test]
+    fn test_native_list_car_simple() {
+        let result = eval_list_str("(list/car '(1 2 3))").unwrap();
+        assert_eq!(result, Expr::Number(1.0));
+    }
+
+    #[test]
+    fn test_native_list_car_single_element_list() {
+        let result = eval_list_str("(list/car '(a))").unwrap();
+        assert_eq!(result, Expr::Symbol("a".to_string()));
+    }
+
+    #[test]
+    fn test_native_list_car_nested_list() {
+        let result = eval_list_str("(list/car '((1 2) 3))").unwrap();
+        assert_eq!(
+            result,
+            Expr::List(vec![Expr::Number(1.0), Expr::Number(2.0)])
+        );
+    }
+
+    #[test]
+    fn test_native_list_car_empty_list_error() {
+        let result = eval_list_str("(list/car '())");
+        assert!(matches!(result, Err(LispError::ValueError(_))));
+    }
+
+    #[test]
+    fn test_native_list_car_nil_error() {
+        // Evaluating (list/car nil) would first try to evaluate nil as a variable.
+        // To test car with Expr::Nil directly:
+        let result = native_list_car(vec![Expr::Nil]);
+        assert!(matches!(result, Err(LispError::ValueError(_))));
+    }
+
+    #[test]
+    fn test_native_list_car_type_error() {
+        let result = eval_list_str("(list/car 123)");
+        assert!(matches!(result, Err(LispError::TypeError { .. })));
+    }
+
+    #[test]
+    fn test_native_list_car_arity_error() {
+        let result_no_args = eval_list_str("(list/car)");
+        assert!(matches!(result_no_args, Err(LispError::ArityMismatch(_))));
+
+        let result_too_many = eval_list_str("(list/car '(1) '(2))");
+        assert!(matches!(
+            result_too_many,
+            Err(LispError::ArityMismatch(_))
+        ));
+    }
+
+    // Tests for list/cdr
+    #[test]
+    fn test_native_list_cdr_simple() {
+        let result = eval_list_str("(list/cdr '(1 2 3))").unwrap();
+        assert_eq!(
+            result,
+            Expr::List(vec![Expr::Number(2.0), Expr::Number(3.0)])
+        );
+    }
+
+    #[test]
+    fn test_native_list_cdr_single_element_list() {
+        let result = eval_list_str("(list/cdr '(a))").unwrap();
+        assert_eq!(result, Expr::List(vec![])); // cdr of a single element list is an empty list
+    }
+
+    #[test]
+    fn test_native_list_cdr_nested_list() {
+        let result = eval_list_str("(list/cdr '((1 2) (3 4) 5))").unwrap();
+        assert_eq!(
+            result,
+            Expr::List(vec![
+                Expr::List(vec![Expr::Number(3.0), Expr::Number(4.0)]),
+                Expr::Number(5.0)
+            ])
+        );
+    }
+
+    #[test]
+    fn test_native_list_cdr_empty_list_error() {
+        let result = eval_list_str("(list/cdr '())");
+        assert!(matches!(result, Err(LispError::ValueError(_))));
+    }
+
+    #[test]
+    fn test_native_list_cdr_nil_error() {
+        let result = native_list_cdr(vec![Expr::Nil]);
+        assert!(matches!(result, Err(LispError::ValueError(_))));
+    }
+
+    #[test]
+    fn test_native_list_cdr_type_error() {
+        let result = eval_list_str("(list/cdr 123)");
+        assert!(matches!(result, Err(LispError::TypeError { .. })));
+    }
+
+    #[test]
+    fn test_native_list_cdr_arity_error() {
+        let result_no_args = eval_list_str("(list/cdr)");
+        assert!(matches!(result_no_args, Err(LispError::ArityMismatch(_))));
+
+        let result_too_many = eval_list_str("(list/cdr '(1) '(2))");
+        assert!(matches!(
+            result_too_many,
+            Err(LispError::ArityMismatch(_))
+        ));
     }
 }
